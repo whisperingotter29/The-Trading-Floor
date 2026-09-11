@@ -56,3 +56,14 @@
 .ex-badge { font-size: 12px !important; }
 .tape-item em { font-size: .55em; font-family: var(--body); font-weight: 500; }
 @media (min-width: 761px) { .s-ticket { width: 320px; } }
+
+/* Composer: trade result (profit/loss required, risk:reward optional) */
+.tk-segs { display: flex; gap: 10px; flex-wrap: wrap; }
+.money { position: relative; }
+.money i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-style: normal; color: var(--muted); font-weight: 600; pointer-events: none; }
+.money .input { padding-left: 26px; }
+.money.rr .input { padding-left: 30px; }
+.field span .opt { font-style: normal; font-family: var(--body); font-size: 12px; font-weight: 500; opacity: .75; margin-left: 4px; }
+.ticket-strip.tk3 { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; }
+.s-ticket .ticket-strip.tk3 { grid-template-columns: repeat(2, minmax(0, 1fr)) auto; }
+.ticket-strip.tk3 .tf { display: block !important; }

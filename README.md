@@ -4,7 +4,7 @@ Static front-end prototype (HTML/CSS/JS, GSAP + ScrollTrigger from cdnjs). The p
 
 ## Routes (hash-based)
 - `#/` landing: opening-bell preloader, candle Scene, strategy book, replays, badge picker
-- `#/floor` feed (filters, like, double-tap like, comments, save) and `Post a trade` composer (image or video upload, optional trade ticket)
+- `#/floor` feed (filters, like, double-tap like, comments, save) and `Post a trade` composer (image or video upload, profit/loss in dollars, optional risk:reward)
 - `#/replays` vertical snap feed of uploaded screen recordings (MP4, MOV, WebM)
 - `#/discover` strategy search, style and market filters, sorting
 - `#/s/:id` strategy page (its own mini-site: cover, author stats, step tickets with checklists, trades using it, follow, fork)

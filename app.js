@@ -4,8 +4,9 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const compact = (n) => (n >= 1e4 ? (n / 1e3).toFixed(n >= 1e5 ? 0 : 1).replace(/\.0$/, '') + 'k' : n >= 1e3 ? n.toLocaleString('en-US') : String(n));
 const ago = (t) => { const m = Math.max(1, Math.round((Date.now() - t) / 6e4)); if (m < 60) return m + 'm'; const h = Math.round(m / 60); if (h < 24) return h + 'h'; return Math.round(h / 24) + 'd'; };
-const rTxt = (r) => (r > 0 ? '+' : r < 0 ? '−' : '') + Math.abs(r).toFixed(1) + 'R';
 const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'strategy';
+const money = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: Math.abs(n) % 1 ? 2 : 0, maximumFractionDigits: 2 });
+const rrTxt = (rr) => '1:' + (Math.round(rr * 100) / 100);
 const has = (v) => v !== '' && v != null && isFinite(Number(v));
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 2400); }
@@ -80,13 +81,10 @@ function openSignup({ then, badgeHint = '' } = {}) {
 /* ============ POST PARTS ============ */
 function ticketStrip(p) {
   const k = p.tk; if (!k) return '';
-  return `<div class="ticket"><div class="ticket-strip">
+  return `<div class="ticket"><div class="ticket-strip tk3">
     <div class="tf"><b>Side</b><i>${k.side === 'long' ? 'Long' : 'Short'} ${esc(p.sym)}</i></div>
-    <div class="tf"><b>Entry</b><i>${fmtPrice(k.entry, p.sym)}</i></div>
-    <div class="tf"><b>Stop</b><i>${fmtPrice(k.stop, p.sym)}</i></div>
-    <div class="tf hide-m"><b>Target</b><i>${isFinite(k.target) ? fmtPrice(k.target, p.sym) : '–'}</i></div>
-    <div class="tf hide-m"><b>Exit</b><i>${fmtPrice(k.exit, p.sym)}</i></div>
-    <div class="stamp ${k.r > 0 ? 'win' : 'loss'}">${rTxt(k.r)}</div>
+    <div class="tf"><b>Risk:reward</b><i>${k.rr ? rrTxt(k.rr) : '–'}</i></div>
+    <div class="stamp ${k.pnl > 0 ? 'win' : 'loss'}" title="Profit / loss">${money(k.pnl)}</div>
   </div></div>`;
 }
 function mediaHTML(p, { reel = false } = {}) {
@@ -150,12 +148,12 @@ function feedView() {
   if (f === 'following') list = list.filter((p) => state.following.has(p.user) || p.user === ME);
   if (f === 'photos') list = list.filter((p) => p.type === 'image');
   if (f === 'videos') list = list.filter((p) => p.type === 'video');
-  if (f === 'wins') list = list.filter((p) => p.tk && p.tk.r > 0);
-  if (f === 'losses') list = list.filter((p) => p.tk && p.tk.r <= 0);
+  if (f === 'wins') list = list.filter((p) => p.tk && p.tk.pnl > 0);
+  if (f === 'losses') list = list.filter((p) => p.tk && p.tk.pnl < 0);
   const chips = [['all', 'For you'], ['following', 'Following'], ['photos', 'Photos'], ['videos', 'Videos'], ['wins', 'Wins'], ['losses', 'Losses']]
     .map(([k, l]) => `<button class="chip" data-act="feed-filter" data-f="${k}" aria-pressed="${f === k}">${l}</button>`).join('');
   const tape = [...state.posts].filter((p) => p.tk).sort((a, b) => b.t - a.t).slice(0, 10);
-  const tapeLi = tape.map((p) => `<li>${badge(p.user, 28)}<span><b>${esc(p.user)}</b> ${p.tk.side} ${esc(p.sym)}</span><i class="${p.tk.r > 0 ? 'w' : ''}">${rTxt(p.tk.r)}</i></li>`).join('');
+  const tapeLi = tape.map((p) => `<li>${badge(p.user, 28)}<span><b>${esc(p.user)}</b> ${p.tk.side} ${esc(p.sym)}</span><i class="${p.tk.pnl > 0 ? 'w' : ''}">${money(p.tk.pnl)}</i></li>`).join('');
   const rising = [...state.strategies].sort((a, b) => b.followers - a.followers).slice(0, 4)
     .map((s) => `<a class="mini-strat" href="#/s/${s.id}">${badge(s.user, 34)}<div><strong>${esc(s.title)}</strong><small>${esc(s.market)}, ${s.steps.length} steps, ${compact(s.followers)} following</small></div></a>`).join('');
   const none = !state.posts.length;
@@ -167,7 +165,7 @@ function feedView() {
       ${main}
     </section>
     <aside class="side" aria-label="Live activity">
-      <div><h3>The tape</h3>${tape.length ? `<div class="side-tape ${tape.length > 5 ? 'roll' : ''}"><ul>${tapeLi}${tape.length > 5 ? tapeLi : ''}</ul></div>` : '<p class="side-empty">Trades with entry, stop and exit show up here as they are posted.</p>'}</div>
+      <div><h3>The tape</h3>${tape.length ? `<div class="side-tape ${tape.length > 5 ? 'roll' : ''}"><ul>${tapeLi}${tape.length > 5 ? tapeLi : ''}</ul></div>` : '<p class="side-empty">Trades show up here with their profit or loss as they are posted.</p>'}</div>
       <div><h3>Strategies</h3>${rising || '<p class="side-empty">No strategies have been published yet.</p>'}<a class="btn btn-line btn-sm" style="margin-top:14px" href="#/${state.strategies.length ? 'discover' : 'builder'}">${state.strategies.length ? 'Discover strategies' : 'Build the first one'}</a></div>
     </aside></div>`);
 }
@@ -254,8 +252,8 @@ function strategyView(id) {
 /* ============ PROFILE ============ */
 let profTab = 'posts';
 function thumbHTML(p) {
-  return `<button class="thumb" data-act="open-post" data-id="${p.id}" aria-label="Open ${esc(p.sym)} post${p.tk ? ', ' + rTxt(p.tk.r) : ''}">${p.type === 'image' ? `<img src="${p.url}" alt="" loading="lazy">` : `<video src="${p.url}#t=0.1" muted playsinline preload="metadata"></video>`}
-    ${p.tk ? `<span class="r ${p.tk.r > 0 ? 'w' : ''}">${rTxt(p.tk.r)}</span>` : ''}${p.type === 'video' ? '<span class="rp">Video</span>' : ''}</button>`;
+  return `<button class="thumb" data-act="open-post" data-id="${p.id}" aria-label="Open ${esc(p.sym)} post${p.tk ? ', ' + money(p.tk.pnl) : ''}">${p.type === 'image' ? `<img src="${p.url}" alt="" loading="lazy">` : `<video src="${p.url}#t=0.1" muted playsinline preload="metadata"></video>`}
+    ${p.tk ? `<span class="r ${p.tk.pnl > 0 ? 'w' : ''}">${money(p.tk.pnl)}</span>` : ''}${p.type === 'video' ? '<span class="rp">Video</span>' : ''}</button>`;
 }
 function meView() {
   if (ME) return profileView(ME);
@@ -265,15 +263,15 @@ function profileView(h) {
   const u = U(h); if (!u) return shell('discover', `<div class="page">${emptyBlock('No trader with that handle.', 'Nobody has signed up as @' + esc(h) + '.', `<a class="btn btn-floor" href="#/floor">Back to the floor</a>`)}</div>`);
   const posts = state.posts.filter((p) => p.user === h).sort((a, b) => b.t - a.t);
   const strats = state.strategies.filter((s) => s.user === h);
-  const tked = posts.filter((p) => p.tk); const wins = tked.filter((p) => p.tk.r > 0).length; const me = h === ME; const fol = state.following.has(h);
-  const net = tked.reduce((a, p) => a + p.tk.r, 0);
+  const tked = posts.filter((p) => p.tk); const wins = tked.filter((p) => p.tk.pnl > 0).length; const me = h === ME; const fol = state.following.has(h);
+  const net = tked.reduce((a, p) => a + p.tk.pnl, 0);
   let body = '';
   if (profTab === 'posts') body = posts.length ? `<div class="thumbs">${posts.map(thumbHTML).join('')}</div>` : `<div class="empty">No trades posted yet.${me ? '<br><button class="btn btn-floor" data-act="compose">Post your first trade</button>' : ''}</div>`;
   if (profTab === 'replays') { const r = posts.filter((p) => p.type === 'video'); body = r.length ? `<div class="thumbs">${r.map(thumbHTML).join('')}</div>` : `<div class="empty">No replays yet.${me ? '<br><button class="btn btn-floor" data-act="compose">Upload a screen recording</button>' : ''}</div>`; }
   if (profTab === 'strategies') body = strats.length ? `<div class="sgrid">${strats.map(scardHTML).join('')}</div>` : `<div class="empty">No strategies published.${me ? '<br><a class="btn btn-floor" href="#/builder">Build a strategy</a>' : ''}</div>`;
   return shell(me ? 'me' : 'discover', `<div class="page"><header class="prof">${badge(h, 150)}<div>
       <h1>${esc(u.name)}</h1><div class="h">@${esc(u.handle)}, badge ${esc(u.badge)}</div>${u.bio ? `<p>${esc(u.bio)}</p>` : ''}
-      <div class="stats"><span><b>${posts.length}</b>posts</span>${tked.length ? `<span><b>${wins}/${tked.length}</b>winners</span><span><b>${rTxt(Math.round(net * 10) / 10)}</b>net</span>` : ''}<span><b>${compact(u.followers)}</b>followers</span><span><b>${strats.length}</b>strategies</span></div>
+      <div class="stats"><span><b>${posts.length}</b>posts</span>${tked.length ? `<span><b>${wins}/${tked.length}</b>winners</span><span><b>${money(Math.round(net * 100) / 100)}</b>net P/L</span>` : ''}<span><b>${compact(u.followers)}</b>followers</span><span><b>${strats.length}</b>strategies</span></div>
       <div class="row">${me ? `<button class="btn btn-floor" data-act="compose">${I.plus}Post a trade</button><a class="btn btn-line" href="#/builder">New strategy</a><button class="btn btn-line" data-act="signout">Sign out</button>` : `<button class="btn ${fol ? 'btn-line' : 'btn-floor'}" data-act="follow" data-h="${esc(h)}">${fol ? 'Following' : 'Follow'}</button>`}
       ${u.markets.map((m) => `<span class="chip" style="display:inline-grid;place-items:center">${esc(m)}</span>`).join('')}</div>
     </div></header>
@@ -296,13 +294,13 @@ function closeModal() { const m = $('#modal'); if (m) { $$('video', m).forEach((
 addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 
 /* ============ COMPOSER ============ */
-/* A post is an uploaded image or video. The trade ticket is optional:
-   fill in entry, stop and exit and the post gets a ticket strip with the result in R. */
+/* A post is an uploaded image or video plus the trade result:
+   profit or loss in dollars (required) and risk:reward (optional). */
 let cmp;
 function openComposer() {
   if (!need(openComposer)) return;
   const me = U(ME);
-  cmp = { side: 'long', sym: me.markets[0] || 'MES', tf: '5m', session: 'New York', entry: '', stop: '', target: '', exit: '', caption: '', strategy: '', file: null, ftype: null };
+  cmp = { side: 'long', sym: me.markets[0] || 'MES', tf: '5m', session: 'New York', result: 'profit', amount: '', rr: '', caption: '', strategy: '', file: null, ftype: null };
   const mine = state.strategies.filter((s) => s.user === ME || state.followedStrategies.has(s.id));
   openModal(`<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="cmpH"><header><h2 id="cmpH">Post a trade</h2><button class="ib" data-act="close" aria-label="Close">${I.x}</button></header>
     <div class="compose"><div class="left">
@@ -313,20 +311,22 @@ function openComposer() {
       <div class="g3"><label class="field"><span>Market</span><select class="input" data-k="sym">${Object.keys(SYMBOLS).map((k) => `<option ${k === cmp.sym ? 'selected' : ''}>${k}</option>`).join('')}</select></label>
         <label class="field"><span>Timeframe</span><select class="input" data-k="tf">${['1m', '2m', '5m', '15m', '1h'].map((k) => `<option ${k === cmp.tf ? 'selected' : ''}>${k}</option>`).join('')}</select></label>
         <label class="field"><span>Session</span><select class="input" data-k="session">${['Asia', 'London', 'New York'].map((k) => `<option ${k === cmp.session ? 'selected' : ''}>${k}</option>`).join('')}</select></label></div>
-      <fieldset class="tk-set"><legend>Trade ticket <em>optional</em></legend>
-        <div class="seg" role="group" aria-label="Side"><button type="button" data-side="long" aria-pressed="true">Long</button><button type="button" data-side="short" aria-pressed="false">Short</button></div>
-        <div class="g2"><label class="field"><span>Entry</span><input class="input num" inputmode="decimal" data-k="entry"></label><label class="field"><span>Stop</span><input class="input num" inputmode="decimal" data-k="stop"></label>
-          <label class="field"><span>Target</span><input class="input num" inputmode="decimal" data-k="target"></label><label class="field"><span>Exit</span><input class="input num" inputmode="decimal" data-k="exit"></label></div>
-        <div class="rcalc" id="rcalc">Add entry, stop and exit to show the result in R on your post.</div></fieldset>
+      <fieldset class="tk-set"><legend>Trade result</legend>
+        <div class="tk-segs"><div class="seg" role="group" aria-label="Side"><button type="button" data-side="long" aria-pressed="true">Long</button><button type="button" data-side="short" aria-pressed="false">Short</button></div>
+          <div class="seg seg-pl" role="group" aria-label="Profit or loss"><button type="button" data-res="profit" aria-pressed="true">Profit</button><button type="button" data-res="loss" aria-pressed="false">Loss</button></div></div>
+        <div class="g2"><label class="field"><span>Profit / loss</span><div class="money"><i aria-hidden="true">$</i><input class="input num" inputmode="decimal" data-k="amount" placeholder="420" autocomplete="off"></div></label>
+          <label class="field"><span>Risk:reward <em class="opt">optional</em></span><div class="money rr"><i aria-hidden="true">1:</i><input class="input num" inputmode="decimal" data-k="rr" placeholder="2.5" autocomplete="off"></div></label></div>
+        <div class="rcalc" id="rcalc">Enter how much you made or lost on the trade.</div></fieldset>
       ${mine.length ? `<label class="field"><span>Strategy used</span><select class="input" data-k="strategy"><option value="">None</option>${mine.map((s) => `<option value="${s.id}">${esc(s.title)}</option>`).join('')}</select></label>` : ''}
       <label class="field"><span>Caption</span><textarea class="input" data-k="caption" maxlength="600" placeholder="What did you see, and why did you take it?"></textarea></label>
       <div class="err" id="cmpErr" role="alert"></div>
       <button class="btn btn-floor" data-act="cmp-post">Post to the floor</button>
     </div></div></div>`);
   const m = $('#modal');
-  m.addEventListener('input', (e) => { const k = e.target.dataset.k; if (k) { cmp[k] = e.target.value; $('#cmpErr').textContent = ''; cmpUpdate(); } });
+  m.addEventListener('input', (e) => { const k = e.target.dataset.k; if (k === 'rr' && /^\s*1\s*[:/]/.test(e.target.value)) e.target.value = e.target.value.replace(/^\s*1\s*[:/]\s*/, ''); if (k) { cmp[k] = e.target.value; $('#cmpErr').textContent = ''; cmpUpdate(); } });
   m.addEventListener('change', (e) => { const k = e.target.dataset.k; if (k) { cmp[k] = e.target.value; cmpUpdate(); } if (e.target.id === 'cmpFile') cmpFile(e.target.files[0]); });
-  $$('.seg button', m).forEach((b) => b.addEventListener('click', () => { cmp.side = b.dataset.side; $$('.seg button', m).forEach((x) => x.setAttribute('aria-pressed', x === b)); cmpUpdate(); }));
+  $$('[data-side]', m).forEach((b) => b.addEventListener('click', () => { cmp.side = b.dataset.side; $$('[data-side]', m).forEach((x) => x.setAttribute('aria-pressed', x === b)); cmpUpdate(); }));
+  $$('[data-res]', m).forEach((b) => b.addEventListener('click', () => { cmp.result = b.dataset.res; $$('[data-res]', m).forEach((x) => x.setAttribute('aria-pressed', x === b)); cmpUpdate(); }));
   const d = $('#drop'); ['dragenter', 'dragover'].forEach((ev) => d.addEventListener(ev, (e) => { e.preventDefault(); d.classList.add('on'); }));
   ['dragleave', 'drop'].forEach((ev) => d.addEventListener(ev, (e) => { e.preventDefault(); d.classList.remove('on'); }));
   d.addEventListener('drop', (e) => cmpFile(e.dataTransfer.files[0]));
@@ -338,11 +338,15 @@ function cmpFile(f) {
   if (cmp.file) URL.revokeObjectURL(cmp.file);
   cmp.file = URL.createObjectURL(f); cmp.ftype = f.type.startsWith('video') ? 'video' : 'image'; err.textContent = ''; cmpUpdate();
 }
-function cmpNums() { const n = (v) => (v === '' || v == null ? NaN : Number(String(v).replace(/,/g, ''))); return { e: n(cmp.entry), s: n(cmp.stop), t: n(cmp.target), x: n(cmp.exit) }; }
+function cmpNums() {
+  const amt = cmp.amount.trim() === '' ? NaN : Number(cmp.amount.replace(/[$,\s]/g, ''));
+  const m = cmp.rr.trim().match(/^(?:1\s*[:/]\s*)?(\d+(?:\.\d+)?)$/);
+  return { amt, rr: cmp.rr.trim() === '' ? null : m ? Number(m[1]) : NaN };
+}
 function cmpUpdate() {
-  const { e, s, t, x } = cmpNums(); const rc = $('#rcalc'); const drop = $('#drop');
-  if (isFinite(e) && isFinite(s) && isFinite(x) && e !== s) { const R = Math.abs(e - s); const r = (cmp.side === 'long' ? x - e : e - x) / R; rc.innerHTML = `Risk <b>${R.toFixed(SYMBOLS[cmp.sym].dp)}</b> points, result <b>${rTxt(Math.round(r * 10) / 10)}</b>${isFinite(t) ? `, planned <b>${(Math.abs(t - e) / R).toFixed(1)}R</b>` : ''}.`; }
-  else rc.textContent = 'Add entry, stop and exit to show the result in R on your post.';
+  const { amt, rr } = cmpNums(); const rc = $('#rcalc'); const drop = $('#drop');
+  if (isFinite(amt) && amt >= 0) { const pnl = cmp.result === 'loss' ? -amt : amt; rc.innerHTML = `Shows on your post as <b>${money(pnl)}</b>${rr && isFinite(rr) && rr > 0 ? `, risk:reward <b>${rrTxt(rr)}</b>` : ''}.`; }
+  else rc.textContent = 'Enter how much you made or lost on the trade.';
   $('#cmpClear').hidden = !cmp.file;
   const pv = drop.querySelector('img, video');
   if (cmp.file) { if (!pv || pv.dataset.src !== cmp.file) { pv && pv.remove(); drop.insertAdjacentHTML('beforeend', cmp.ftype === 'video' ? `<video src="${cmp.file}" data-src="${cmp.file}" autoplay muted loop playsinline></video>` : `<img src="${cmp.file}" data-src="${cmp.file}" alt="Upload preview">`); } $('#dropTxt').style.visibility = 'hidden'; }
@@ -351,15 +355,10 @@ function cmpUpdate() {
 function cmpPost() {
   const err = $('#cmpErr');
   if (!cmp.file) return (err.textContent = 'Add a screenshot or screen recording of the trade.');
-  const { e, s, t, x } = cmpNums(); const any = [cmp.entry, cmp.stop, cmp.exit, cmp.target].some((v) => String(v).trim() !== '');
-  let tk = null;
-  if (any) {
-    if (![e, s, x].every(isFinite)) return (err.textContent = 'To add a trade ticket, fill in entry, stop and exit as numbers. Or clear them to post without one.');
-    if (e === s) return (err.textContent = 'Stop cannot be the same as entry.');
-    if (cmp.side === 'long' && s > e) return (err.textContent = 'On a long, the stop goes below entry.');
-    if (cmp.side === 'short' && s < e) return (err.textContent = 'On a short, the stop goes above entry.');
-    const R = Math.abs(e - s); tk = { side: cmp.side, entry: e, stop: s, target: t, exit: x, r: Math.round(((cmp.side === 'long' ? x - e : e - x) / R) * 10) / 10 };
-  }
+  const { amt, rr } = cmpNums();
+  if (!isFinite(amt) || amt < 0) return (err.textContent = 'Enter the profit or loss as a dollar amount, for example 420. Use the Profit / Loss switch for the sign.');
+  if (rr !== null && (!isFinite(rr) || rr <= 0)) return (err.textContent = 'Write risk:reward as a number, for example 2.5 for 1:2.5. Or leave it empty.');
+  const tk = { side: cmp.side, pnl: cmp.result === 'loss' ? -amt : amt, rr };
   state.posts.unshift({ id: 'p' + Date.now(), user: ME, type: cmp.ftype, url: cmp.file, sym: cmp.sym, tf: cmp.tf, session: cmp.session, tk, caption: cmp.caption.trim(), strategy: cmp.strategy || null, likes: 0, comments: [], t: Date.now() });
   cmp.file = null; closeModal(); feedFilter = 'all';
   if (location.hash === '#/floor') render(); else location.hash = '#/floor'; toast('Posted to the floor');

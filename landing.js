@@ -27,15 +27,15 @@ const Landing = (() => {
   const split = (txt) => txt.split('').map((c) => (c === ' ' ? ' ' : `<span class="ch">${esc(c)}</span>`)).join('');
   /* Example tickets: they illustrate what a post looks like. They are not accounts or real posts. */
   const EX = {
-    a: { sym: 'MES', tf: '5m', session: 'London', side: 'long', entry: 6481.25, stop: 6476, r: 2.4, note: 'Swept the Asia low, entered on the reclaim.' },
-    b: { sym: 'NQ', tf: '1m', session: 'New York', side: 'short', entry: 23912.5, stop: 23931, r: -1, note: 'Stopped for a full R. Losses get posted too.' },
-    c: { sym: 'MGC', tf: '1m', session: 'New York', side: 'long', entry: 3641.8, stop: 3638.4, r: 3, note: 'Posted with the screen recording attached.' },
+    a: { sym: 'MES', tf: '5m', session: 'London', side: 'long', pnl: 480, rr: 2.4, note: 'Swept the Asia low, entered on the reclaim.' },
+    b: { sym: 'NQ', tf: '1m', session: 'New York', side: 'short', pnl: -185, rr: 2, note: 'Stopped out. Losses get posted too.' },
+    c: { sym: 'MGC', tf: '1m', session: 'New York', side: 'long', pnl: 620, rr: 3, note: 'Posted with the screen recording attached.' },
   };
   function sTicket(t) {
     const p = EX[t.post];
     return `<div class="ticket s-ticket" data-tk="${t.post}"><header><span class="badge t-board ex-badge" style="--s:32px" aria-hidden="true">YOU</span><div><strong>Example post</strong><em>${p.sym} ${p.tf}, ${p.session}</em></div></header>
       <p>${p.note}</p>
-      <div class="ticket-strip"><div class="tf"><b>Side</b><i>${p.side === 'long' ? 'Long' : 'Short'}</i></div><div class="tf"><b>Entry</b><i>${fmtPrice(p.entry, p.sym)}</i></div><div class="tf"><b>Stop</b><i>${fmtPrice(p.stop, p.sym)}</i></div><div class="stamp ${p.r > 0 ? 'win' : 'loss'}">${rTxt(p.r)}</div></div></div>`;
+      <div class="ticket-strip tk3"><div class="tf"><b>Side</b><i>${p.side === 'long' ? 'Long' : 'Short'} ${p.sym}</i></div><div class="tf"><b>Risk:reward</b><i>1:${p.rr}</i></div><div class="stamp ${p.pnl > 0 ? 'win' : 'loss'}">${money(p.pnl)}</div></div></div>`;
   }
   const BOOK = [['Setup', 'Mark the level you are watching'], ['Trigger', 'What has to happen first'], ['Entry', 'Exactly where you get in'], ['Stop', 'Where the idea is wrong'], ['Target', 'Where you get paid']].map(([kind, title]) => ({ kind, title }));
 
