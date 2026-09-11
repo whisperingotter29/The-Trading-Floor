@@ -2,9 +2,9 @@
 const Landing = (() => {
   const HERO = 40;
   const TK = [ // tickets anchored to candles in the Scene
-    { post: 'p1', idx: HERO, kf: [0.34, 0.40, 0.84, 0.90], dx: 1, dy: -0.2 },
-    { post: 'p3', idx: 10, kf: [0.44, 0.50, 0.84, 0.90], dx: 1, dy: -1.15 },
-    { post: 'p4', idx: 58, kf: [0.54, 0.60, 0.84, 0.90], dx: -1, dy: -1.25 },
+    { post: 'a', idx: HERO, kf: [0.34, 0.40, 0.84, 0.90], dx: 1, dy: -0.2 },
+    { post: 'b', idx: 10, kf: [0.44, 0.50, 0.84, 0.90], dx: 1, dy: -1.15 },
+    { post: 'c', idx: 58, kf: [0.54, 0.60, 0.84, 0.90], dx: -1, dy: -1.25 },
   ];
   /* Motion Script keyframes: [progress breakpoints] -> [values]. Do not change numbers casually. */
   const KF = {
@@ -25,17 +25,22 @@ const Landing = (() => {
   let g, cv, ctx, wc, wctx, W, H, dpr, cleanups = [], rafs = [], sts = [], P = 0, lastP = -1;
 
   const split = (txt) => txt.split('').map((c) => (c === ' ' ? ' ' : `<span class="ch">${esc(c)}</span>`)).join('');
+  /* Example tickets: they illustrate what a post looks like. They are not accounts or real posts. */
+  const EX = {
+    a: { sym: 'MES', tf: '5m', session: 'London', side: 'long', entry: 6481.25, stop: 6476, r: 2.4, note: 'Swept the Asia low, entered on the reclaim.' },
+    b: { sym: 'NQ', tf: '1m', session: 'New York', side: 'short', entry: 23912.5, stop: 23931, r: -1, note: 'Stopped for a full R. Losses get posted too.' },
+    c: { sym: 'MGC', tf: '1m', session: 'New York', side: 'long', entry: 3641.8, stop: 3638.4, r: 3, note: 'Posted with the screen recording attached.' },
+  };
   function sTicket(t) {
-    const p = PP(t.post);
-    return `<div class="ticket s-ticket" data-tk="${t.post}"><header>${badge(p.user, 32)}<div><strong>${esc(p.user)}</strong><em>${esc(p.sym)} ${esc(p.tf)}, ${esc(p.session)}</em></div></header>
-      <p>${esc(p.caption.split('. ')[0])}.</p>
-      <div class="ticket-strip"><div class="tf"><b>Side</b><i>${p.g.side === 'long' ? 'Long' : 'Short'}</i></div><div class="tf"><b>Entry</b><i>${fmtPrice(p.g.entry, p.sym)}</i></div><div class="tf"><b>Stop</b><i>${fmtPrice(p.g.stop, p.sym)}</i></div><div class="stamp ${p.g.r > 0 ? 'win' : 'loss'}">${rTxt(p.g.r)}</div></div></div>`;
+    const p = EX[t.post];
+    return `<div class="ticket s-ticket" data-tk="${t.post}"><header><span class="badge t-board ex-badge" style="--s:32px" aria-hidden="true">YOU</span><div><strong>Example post</strong><em>${p.sym} ${p.tf}, ${p.session}</em></div></header>
+      <p>${p.note}</p>
+      <div class="ticket-strip"><div class="tf"><b>Side</b><i>${p.side === 'long' ? 'Long' : 'Short'}</i></div><div class="tf"><b>Entry</b><i>${fmtPrice(p.entry, p.sym)}</i></div><div class="tf"><b>Stop</b><i>${fmtPrice(p.stop, p.sym)}</i></div><div class="stamp ${p.r > 0 ? 'win' : 'loss'}">${rTxt(p.r)}</div></div></div>`;
   }
-  const PP = (id) => state.posts.find((p) => p.id === id);
-  const BOOK = STRATEGIES[0].steps.slice(0, 5);
+  const BOOK = [['Setup', 'Mark the level you are watching'], ['Trigger', 'What has to happen first'], ['Entry', 'Exactly where you get in'], ['Stop', 'Where the idea is wrong'], ['Target', 'Where you get paid']].map(([kind, title]) => ({ kind, title }));
 
   function html() {
-    const tapeItems = state.posts.slice(0, 9).map((p) => `<span class="tape-item">${badge(p.user, 30)}<span>${p.g.side === 'long' ? 'Long' : 'Short'} ${esc(p.sym)}</span><em>${esc(p.session)}</em><span class="${p.g.r > 0 ? 'w' : ''}">${rTxt(p.g.r)}</span></span>`).join('');
+    const tapeItems = Object.entries(SYMBOLS).map(([k, s]) => `<span class="tape-item"><span class="w">${k}</span><em>${esc(s.name)}</em></span>`).join('');
     return `<header class="land-nav"><a class="mark" href="#/">The Trading<br>Floor</a><nav aria-label="Site"><a href="#/discover">Strategies</a><a href="#/replays">Replays</a><a class="btn btn-floor btn-sm" href="#/floor">Enter the floor</a></nav></header>
     <main>
     <section class="scene" id="scene" aria-label="Introduction"><div class="scene-pin">
@@ -47,32 +52,33 @@ const Landing = (() => {
         <div class="ctas"><a class="btn btn-floor mag" href="#/floor">Enter the floor</a><a class="btn btn-line mag" href="#/discover">Discover strategies</a></div></div>
       <div class="scroll-cue" aria-hidden="true"></div>
       <div class="scene-end"><h2 aria-label="Every candle has a trader behind it.">${'Every candle has a trader behind it.'.split(' ').map((w) => `<span style="white-space:nowrap;display:inline-block">${split(w)}</span>`).join(' ')}</h2>
-        <p>Entries, stops, exits and the reasoning, posted by the people who took them.</p><a class="btn btn-floor cta mag" href="#/floor">Enter the floor</a></div>
+        <p>Entries, stops, exits and the reasoning, posted by the people who took them. Nobody has posted yet, so the first trade could be yours.</p><a class="btn btn-floor cta mag" href="#/floor">Enter the floor</a></div>
     </div></section>
 
     <section class="book" id="book" aria-label="Strategy builder"><div class="book-pin">
       <div class="copy"><div class="l-kicker"><b>Strategies</b><span>Built step by step</span></div><h2 class="l-h">Your playbook, as its own page.</h2>
         <p class="l-p">The strategy builder turns your rules into a page anyone can read: <strong>setup, trigger, entry, stop, target</strong>, with checklists and example charts. It sits on your profile and in Discover, and other traders can follow it or fork it.</p>
-        <div class="book-url">thetradingfloor.app/<b>@kestrel.fx/london-sweep</b></div>
-        <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-floor" href="#/builder">Open the builder</a><a class="btn btn-line" href="#/s/london-sweep">Read an example</a></div></div>
+        <div class="book-url">thetradingfloor.app/<b>@you/your-strategy</b></div>
+        <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-floor" href="#/builder">Open the builder</a><a class="btn btn-line" href="#/discover">Discover strategies</a></div></div>
       <div class="book-stack">${BOOK.map((s, i) => `<div class="ticket book-t" data-i="${i}"><div class="row"><div class="n">${String(i + 1).padStart(2, '0')}</div><div><div class="k">${esc(s.kind)}</div><h4>${esc(s.title)}</h4></div></div></div>`).join('')}</div>
     </div></section>
 
     <section class="l-sec"><div class="replay-sec">
       <div><div class="l-kicker"><b>Replays</b><span>Screen recordings and chart replays</span></div><h2 class="l-h">Post the replay, not just the screenshot.</h2>
-        <p class="l-p">A screenshot shows where you got in. A replay shows <strong>what you were looking at when you decided</strong>. Upload a screen recording or let us animate your chart from the ticket, then scroll through everyone else's like a vertical feed.</p>
+        <p class="l-p">A screenshot shows where you got in. A replay shows <strong>what you were looking at when you decided</strong>. Upload a screen recording of the trade as an MP4, MOV or WebM, then scroll through everyone else's in a vertical feed.</p>
         <a class="btn btn-floor" style="margin-top:28px" href="#/replays">Watch replays</a></div>
-      <div class="phone"><div class="phone-screen"><canvas data-replay="p4" aria-label="Replay of a gold trade"></canvas><div class="phone-bar"><i></i></div>
-        <div class="phone-ov"><div class="who">${badge('sunday.open', 26)}<span>sunday.open</span></div><p>10:12 gap toward the overnight high. One trade, done for the day.</p></div></div></div>
+      <div class="phone" aria-hidden="true"><div class="phone-screen phone-empty"><div class="phone-bar"><i class="phone-run"></i></div>
+        <div class="pe-drop"><svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg><b>your-trade.mp4</b><span>Your screen recording plays here</span></div>
+        <div class="phone-ov"><div class="who"><span class="badge t-board" style="--s:26px">YOU</span><span>your handle</span></div><p>Your caption and trade ticket sit here.</p></div></div></div>
     </div></section>
-    <div class="tape" aria-label="Recent trades"><div class="tape-track" id="tapeTrack">${tapeItems}${tapeItems}</div></div>
+    <div class="tape" aria-label="Markets you can post"><div class="tape-track" id="tapeTrack">${tapeItems}${tapeItems}</div></div>
 
     <section class="l-sec badge-sec" aria-label="Pick a badge"><div class="l-kicker" style="justify-content:center"><b>Badges</b><span>From the pit</span></div>
       <h2 class="l-h">Pick your badge.</h2>
       <p class="l-p" style="margin:24px auto 0">On the old exchange floors every trader wore three letters so the pit knew who was on the other side. Here your badge goes on every trade you post.</p>
-      <div class="badge-maker"><div class="badge-big" id="bigBadge" aria-live="polite">${esc(U(ME).badge)}</div>
-        <label class="sr" for="badgeIn">Three letter badge</label><input id="badgeIn" class="input badge-in" maxlength="3" value="${esc(U(ME).badge)}" autocomplete="off" spellcheck="false">
-        <a class="btn btn-floor mag" href="#/floor" id="badgeGo">Enter the floor as ${esc(U(ME).badge)}</a></div></section>
+      <div class="badge-maker"><div class="badge-big" id="bigBadge" aria-live="polite">???</div>
+        <label class="sr" for="badgeIn">Three letter badge</label><input id="badgeIn" class="input badge-in" maxlength="3" value="" placeholder="ABC" autocomplete="off" spellcheck="false">
+        <a class="btn btn-floor mag" href="#/floor" id="badgeGo">Claim a badge</a></div></section>
 
     <footer class="land-foot"><div class="big">The Trading<br>Floor</div><div style="display:grid;gap:10px;justify-items:end"><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-line btn-sm" href="#/discover">Strategies</a><a class="btn btn-line btn-sm" href="#/replays">Replays</a><a class="btn btn-line btn-sm" href="#/builder">Builder</a></div>
       <small>Trades and results are posted by users and are not financial advice.</small></div></footer>
@@ -146,7 +152,7 @@ const Landing = (() => {
       const k = g.candles[t.idx]; const [cx, cy] = T(L.X(t.idx), L.Y(t.dy < 0 ? k.h : k.l));
       const w = el.offsetWidth, h = el.offsetHeight; const gap = W < 700 ? 10 : 26;
       let x = t.dx > 0 ? cx + gap : cx - w - gap; let y = cy + t.dy * h;
-      if (W < 700) { const slot = { p3: 76, p4: H * 0.4, p1: H - h - 110 }[t.post]; y = slot; }
+      if (W < 700) { const slot = { b: 76, c: H * 0.4, a: H - h - 110 }[t.post]; y = slot; }
       x = Math.max(12, Math.min(W - w - 12, x)); y = Math.max(70, Math.min(H - h - 16, y));
       el.style.visibility = 'visible'; el.style.opacity = op; el.style.filter = bl > 0.2 ? `blur(${bl.toFixed(1)}px)` : 'none';
       el.style.transform = `translate3d(${x.toFixed(1)}px, ${(y + ty).toFixed(1)}px, 0) rotate(${t.dx > 0 ? -1.5 : 1.5}deg)`;
@@ -210,8 +216,9 @@ const Landing = (() => {
     $$('.mag').forEach((b) => { const mv = (e) => { const r = b.getBoundingClientRect(); b.style.transform = `translate(${(e.clientX - r.left - r.width / 2) * 0.18}px, ${(e.clientY - r.top - r.height / 2) * 0.18}px)`; };
       const lv = () => (b.style.transform = ''); b.addEventListener('mousemove', mv); b.addEventListener('mouseleave', lv); });
     // badge maker
-    const bi = $('#badgeIn'); bi.addEventListener('input', () => { const v = bi.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); bi.value = v; $('#bigBadge').textContent = v || '???'; $('#badgeGo').textContent = v.length === 3 ? `Enter the floor as ${v}` : 'Badges are three letters'; $('#badgeGo').toggleAttribute('aria-disabled', v.length !== 3); });
-    $('#badgeGo').addEventListener('click', (e) => { const v = bi.value; if (v.length !== 3) { e.preventDefault(); bi.focus(); return; } USERS[ME].badge = v; });
+    const bi = $('#badgeIn'); const taken = (v) => Object.values(USERS).some((u) => u.badge === v);
+    bi.addEventListener('input', () => { const v = bi.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); bi.value = v; $('#bigBadge').textContent = v || '???'; $('#badgeGo').textContent = v.length !== 3 ? 'Badges are three letters' : taken(v) ? `${v} is taken` : `Claim ${v}`; });
+    $('#badgeGo').addEventListener('click', (e) => { e.preventDefault(); const v = bi.value; if (v.length !== 3 || taken(v)) { bi.focus(); return; } if (ME) { location.hash = '#/floor'; return; } openSignup({ badgeHint: v, then: () => { location.hash = '#/floor'; } }); });
   }
   function intro() {
     const chs = $$('.wordmark .ch'); if (!chs.length || !window.gsap || reduced) return;
