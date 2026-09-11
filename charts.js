@@ -100,7 +100,7 @@ function tradeFromTicket(t, seed) {
 }
 
 const THEMES = {
-  board: { bg: '#101214', grid: 'rgba(236,232,220,0.06)', ink: '#ECE8DC', muted: 'rgba(236,232,220,0.42)', hi: '#FFD21F', label: 'rgba(236,232,220,0.5)' },
+  board: { bg: '#081711', grid: 'rgba(230,237,231,0.06)', ink: '#E6EDE7', muted: 'rgba(230,237,231,0.42)', hi: '#18A583', label: 'rgba(230,237,231,0.5)' },
   paper: { bg: '#EFE9D8', grid: 'rgba(27,26,22,0.08)', ink: '#1B1A16', muted: 'rgba(27,26,22,0.45)', hi: '#1B1A16', label: 'rgba(27,26,22,0.55)' },
 };
 
@@ -165,7 +165,7 @@ function drawChart(ctx, W, H, g, opts = {}) {
       const x = W - padR + W * 0.02; ctx.fillStyle = fill; ctx.fillRect(x, y - fs * 0.75, tw, fs * 1.5);
       ctx.fillStyle = color; ctx.textBaseline = 'middle'; ctx.fillText(txt, x + fs * 0.4, y + 1);
     };
-    tag('TP', g.target, th.ink, th.bg); tag('SL', g.stop, 'transparent', th.muted); tag('IN', g.entry, th.hi, '#101214');
+    tag('TP', g.target, th.ink, th.bg); tag('SL', g.stop, 'transparent', th.muted); tag('IN', g.entry, th.hi, '#04130D');
   }
   return { X, Y, cw };
 }

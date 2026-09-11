@@ -111,7 +111,7 @@ const Landing = (() => {
     const rad = interp(p, KF.reveal); const dim = interp(p, KF.chartDim); const glow = interp(p, KF.glow);
     ctx.clearRect(0, 0, W, H); wctx.clearRect(0, 0, W, H);
     // faint grid appears with the chart
-    ctx.globalAlpha = Math.min(1, rad / 20) * dim; ctx.strokeStyle = 'rgba(236,232,220,0.06)'; ctx.lineWidth = 1;
+    ctx.globalAlpha = Math.min(1, rad / 20) * dim; ctx.strokeStyle = 'rgba(230,237,231,0.06)'; ctx.lineWidth = 1;
     for (let i = 1; i < 6; i++) { const y = Math.round((H / 6) * i) + 0.5; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
     const lw = 1.2; const cw = L.cw * s;
     for (let i = 0; i < g.candles.length; i++) {
@@ -122,15 +122,15 @@ const Landing = (() => {
       const top = Math.min(yO, yC), bh = Math.max(1, Math.abs(yC - yO)); const up = k.c >= k.o;
       if (isHero) {
         const hw = Math.max(1.5, lw * Math.min(s, 3.2));
-        ctx.globalAlpha = 1; ctx.save(); ctx.shadowColor = 'rgba(255,210,31,' + (0.85 * glow) + ')'; ctx.shadowBlur = 80 * glow * Math.min(1, s / 3);
-        ctx.strokeStyle = '#FFD21F'; ctx.lineWidth = hw; ctx.strokeRect(x - cw / 2, top, cw, bh);
-        ctx.fillStyle = 'rgba(255,210,31,0.14)'; ctx.fillRect(x - cw / 2, top, cw, bh);
+        ctx.globalAlpha = 1; ctx.save(); ctx.shadowColor = 'rgba(24,165,131,' + (0.85 * glow) + ')'; ctx.shadowBlur = 80 * glow * Math.min(1, s / 3);
+        ctx.strokeStyle = '#18A583'; ctx.lineWidth = hw; ctx.strokeRect(x - cw / 2, top, cw, bh);
+        ctx.fillStyle = 'rgba(24,165,131,0.14)'; ctx.fillRect(x - cw / 2, top, cw, bh);
         ctx.restore();
         // wick on the front canvas: pierces the wordmark
-        wctx.strokeStyle = '#FFD21F'; wctx.lineWidth = hw; wctx.save(); wctx.shadowColor = 'rgba(255,210,31,' + 0.7 * glow + ')'; wctx.shadowBlur = 30 * glow;
+        wctx.strokeStyle = '#18A583'; wctx.lineWidth = hw; wctx.save(); wctx.shadowColor = 'rgba(24,165,131,' + 0.7 * glow + ')'; wctx.shadowBlur = 30 * glow;
         wctx.beginPath(); wctx.moveTo(x, yH); wctx.lineTo(x, top); wctx.moveTo(x, top + bh); wctx.lineTo(x, yL); wctx.stroke(); wctx.restore();
       } else {
-        ctx.globalAlpha = a * dim; ctx.strokeStyle = '#ECE8DC'; ctx.fillStyle = '#ECE8DC'; ctx.lineWidth = lw;
+        ctx.globalAlpha = a * dim; ctx.strokeStyle = '#E6EDE7'; ctx.fillStyle = '#E6EDE7'; ctx.lineWidth = lw;
         ctx.beginPath(); ctx.moveTo(x, yH); ctx.lineTo(x, top); ctx.moveTo(x, top + bh); ctx.lineTo(x, yL); ctx.stroke();
         if (up) ctx.strokeRect(x - cw / 2 + 0.6, top + 0.6, Math.max(1, cw - 1.2), Math.max(1, bh - 1.2)); else ctx.fillRect(x - cw / 2, top, cw, bh);
       }
@@ -139,8 +139,8 @@ const Landing = (() => {
     const pa = interp(p, [[TK[0].kf[0], TK[0].kf[1] + 0.12], [0, 1]]);
     if (pa > 0) {
       const [ex, ey] = T(L.X(HERO), L.Y(g.entry)); const [xx, xy] = T(L.X(g.exitIdx), L.Y(g.exit));
-      ctx.globalAlpha = dim; ctx.strokeStyle = '#FFD21F'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex + (xx - ex) * pa, ey + (xy - ey) * pa); ctx.stroke();
-      ctx.setLineDash([4, 5]); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(236,232,220,.5)'; const sy = T(0, L.Y(g.stop))[1], ty = T(0, L.Y(g.target))[1];
+      ctx.globalAlpha = dim; ctx.strokeStyle = '#18A583'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex + (xx - ex) * pa, ey + (xy - ey) * pa); ctx.stroke();
+      ctx.setLineDash([4, 5]); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(230,237,231,.5)'; const sy = T(0, L.Y(g.stop))[1], ty = T(0, L.Y(g.target))[1];
       ctx.beginPath(); ctx.moveTo(ex, sy); ctx.lineTo(ex + (W - ex) * pa, sy); ctx.moveTo(ex, ty); ctx.lineTo(ex + (W - ex) * pa, ty); ctx.stroke(); ctx.setLineDash([]);
     }
     ctx.globalAlpha = 1;
@@ -157,7 +157,7 @@ const Landing = (() => {
       el.style.visibility = 'visible'; el.style.opacity = op; el.style.filter = bl > 0.2 ? `blur(${bl.toFixed(1)}px)` : 'none';
       el.style.transform = `translate3d(${x.toFixed(1)}px, ${(y + ty).toFixed(1)}px, 0) rotate(${t.dx > 0 ? -1.5 : 1.5}deg)`;
       // leader dot on the anchored candle
-      ctx.globalAlpha = op * dim; ctx.fillStyle = '#FFD21F'; ctx.beginPath(); ctx.arc(cx, cy + (t.dy < 0 ? -8 : 8), 4, 0, 6.3); ctx.fill(); ctx.globalAlpha = 1;
+      ctx.globalAlpha = op * dim; ctx.fillStyle = '#18A583'; ctx.beginPath(); ctx.arc(cx, cy + (t.dy < 0 ? -8 : 8), 4, 0, 6.3); ctx.fill(); ctx.globalAlpha = 1;
     });
     // wordmark
     const wo = interp(p, KF.wordOpacity), wb = interp(p, KF.wordBlur), wy = interp(p, KF.wordY), sp = interp(p, KF.wordSpread);

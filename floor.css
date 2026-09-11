@@ -42,7 +42,7 @@
 .drop-ic { width: 34px; height: 34px; stroke: var(--muted); fill: none; stroke-width: 1.6; margin: 0 auto 12px; display: block; }
 
 /* Reels: sound hint */
-.mute { position: absolute; right: 12px; top: 12px; font-size: 12px; font-weight: 600; background: rgba(15,17,19,.8); padding: 5px 9px; border-radius: var(--r); pointer-events: none; }
+.mute { position: absolute; right: 12px; top: 12px; font-size: 12px; font-weight: 600; background: rgba(7,20,15,.8); padding: 5px 9px; border-radius: var(--r); pointer-events: none; }
 .reel video { cursor: pointer; }
 
 /* Landing: phone mock for uploaded recordings, example tickets */
