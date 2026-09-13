@@ -1,18 +1,195 @@
-/* ============ APP STATE ============ */
-/* The floor starts empty: no accounts, no posts, no strategies.
-   Everything below is filled in by people who sign up and post. */
-const USERS = {};
-let ME = null; // handle of the signed-in account, null until someone creates one
+/* ============ BACKEND (Supabase) ============ */
+/* The publishable key is meant to be public. What anyone can read or write is
+   decided by the row level security rules in the database, not by this key. */
+const SUPABASE_URL = 'https://grcldjuolszcidfitxgo.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_cfJe5103VSlxakj3FvsJzg_mAH7uQIH';
+const MEDIA_BUCKET = 'media';
+const MAX_UPLOAD = 50 * 1024 * 1024; // matches the storage bucket limit
 
-const STRATEGIES = [];
-const POSTS = [];
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+});
 
-const state = {
-  posts: POSTS, strategies: STRATEGIES, users: USERS,
-  liked: new Set(), saved: new Set(), following: new Set(),
-  followedStrategies: new Set(),
-  draft: null,
+let SESSION = null; // Supabase auth session (signed in or not)
+let ME = null;      // the signed-in person's profile row, null until they set one up
+
+const state = { liked: new Set(), saved: new Set(), following: new Set(), followedStrategies: new Set(), draft: null };
+
+function dbError(error, fallback) {
+  if (!error) return null;
+  const m = (error.message || '') + ' ' + (error.details || '');
+  if (error.code === '23505' && /handle/.test(m)) return 'That handle is taken. Try another one.';
+  if (error.code === '23505' && /badge/.test(m)) return 'That badge is taken. Pick another three letters.';
+  if (/JWT|not authenticated|permission denied|row-level security/i.test(m)) return 'Your session ended. Sign in again and retry.';
+  if (/Failed to fetch|NetworkError|network/i.test(m)) return 'Could not reach the server. Check your connection and try again.';
+  return fallback || 'Something went wrong. Please try again.';
+}
+const uid = () => SESSION?.user?.id || null;
+
+const DB = {
+  /* ---------- auth ---------- */
+  async init() {
+    const { data } = await sb.auth.getSession();
+    SESSION = data.session;
+    await DB.loadMe();
+    sb.auth.onAuthStateChange(async (event, session) => {
+      const was = SESSION?.user?.id; SESSION = session;
+      if ((session?.user?.id || null) !== (was || null)) { await DB.loadMe(); window.dispatchEvent(new CustomEvent('tf:auth', { detail: event })); }
+    });
+  },
+  async loadMe() {
+    ME = null; state.liked.clear(); state.saved.clear(); state.following.clear(); state.followedStrategies.clear();
+    if (!uid()) return;
+    const { data } = await sb.from('profiles_stats').select('*').eq('id', uid()).maybeSingle();
+    ME = data || null;
+    if (ME) {
+      const [f, sf] = await Promise.all([
+        sb.from('follows').select('following_id').eq('follower_id', uid()),
+        sb.from('strategy_follows').select('strategy_id').eq('user_id', uid()),
+      ]);
+      (f.data || []).forEach((r) => state.following.add(r.following_id));
+      (sf.data || []).forEach((r) => state.followedStrategies.add(r.strategy_id));
+    }
+  },
+  redirectTo() { return location.origin + location.pathname; },
+  async signInGoogle() {
+    const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: DB.redirectTo() } });
+    return error ? (/provider is not enabled|Unsupported provider/i.test(error.message) ? 'Google sign-in is not switched on yet. Use email for now.' : dbError(error)) : null;
+  },
+  async sendEmailLink(email) {
+    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: DB.redirectTo(), shouldCreateUser: true } });
+    if (!error) return null;
+    if (/rate limit|too many|seconds/i.test(error.message)) return 'Too many sign-in emails were sent recently. Wait a few minutes and try again.';
+    return dbError(error, 'Could not send the email. Check the address and try again.');
+  },
+  async verifyEmailCode(email, token) {
+    const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
+    return error ? 'That code did not work. Check it, or request a new email.' : null;
+  },
+  async signOut() { await sb.auth.signOut(); SESSION = null; await DB.loadMe(); },
+
+  /* ---------- profiles ---------- */
+  async createProfile(p) {
+    const { error } = await sb.from('profiles').insert({ id: uid(), ...p });
+    if (error) return dbError(error, 'Could not create your profile.');
+    await DB.loadMe(); return null;
+  },
+  async isTaken(col, value) {
+    const { data } = await sb.from('profiles').select('id').eq(col, value).limit(1);
+    return !!(data && data.length);
+  },
+  async profileByHandle(h) {
+    const { data } = await sb.from('profiles_stats').select('*').eq('handle', h).maybeSingle();
+    return data;
+  },
+
+  /* ---------- media ---------- */
+  mediaUrl(path) {
+    if (!path) return '';
+    if (/^(https?:|blob:|data:)/.test(path)) return path;
+    return sb.storage.from(MEDIA_BUCKET).getPublicUrl(path).data.publicUrl;
+  },
+  async upload(file, folder) {
+    const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5) || 'bin';
+    const path = `${uid()}/${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await sb.storage.from(MEDIA_BUCKET).upload(path, file, { contentType: file.type, upsert: false, cacheControl: '31536000' });
+    if (error) return { error: /size|too large|exceed/i.test(error.message) ? 'That file is over 50 MB. Trim it and try again.' : /mime|type/i.test(error.message) ? 'That file type is not allowed. Use PNG, JPG, GIF, WebP, MP4, MOV or WebM.' : dbError(error, 'The upload failed. Try again.') };
+    return { path };
+  },
+
+  /* ---------- posts ---------- */
+  norm(r) {
+    return { id: r.id, user_id: r.user_id, handle: r.handle, badge: r.badge, tone: r.tone, type: r.media_type, path: r.media_path, url: DB.mediaUrl(r.media_path),
+      sym: r.sym, tf: r.tf, session: r.session, tk: { side: r.side, pnl: Number(r.pnl), rr: r.rr == null ? null : Number(r.rr) },
+      caption: r.caption, strategy_id: r.strategy_id, likes: r.like_count || 0, commentCount: r.comment_count || 0, comments: [], t: Date.parse(r.created_at), created_at: r.created_at };
+  },
+  async posts({ filter = 'all', user_id, strategy_id, video, before, limit = 20 } = {}) {
+    let q = sb.from('posts_feed').select('*').order('created_at', { ascending: false }).limit(limit);
+    if (user_id) q = q.eq('user_id', user_id);
+    if (strategy_id) q = q.eq('strategy_id', strategy_id);
+    if (video || filter === 'videos') q = q.eq('media_type', 'video');
+    if (filter === 'photos') q = q.eq('media_type', 'image');
+    if (filter === 'wins') q = q.gt('pnl', 0);
+    if (filter === 'losses') q = q.lt('pnl', 0);
+    if (filter === 'following') { const ids = [...state.following]; if (uid()) ids.push(uid()); if (!ids.length) return { rows: [] }; q = q.in('user_id', ids); }
+    if (before) q = q.lt('created_at', before);
+    const { data, error } = await q;
+    if (error) return { rows: [], error: dbError(error, 'Could not load posts.') };
+    const rows = data.map(DB.norm);
+    await DB.decorate(rows);
+    return { rows };
+  },
+  async post(id) {
+    const { data } = await sb.from('posts_feed').select('*').eq('id', id).maybeSingle();
+    if (!data) return null;
+    const p = DB.norm(data); await DB.decorate([p], 50); return p;
+  },
+  /* adds recent comments plus my likes and saves to a list of posts */
+  async decorate(rows, perPost = 2) {
+    if (!rows.length) return;
+    const ids = rows.map((r) => r.id);
+    const jobs = [sb.from('comments_list').select('*').in('post_id', ids).order('created_at', { ascending: true }).limit(perPost > 2 ? 200 : ids.length * 12)];
+    if (ME) { jobs.push(sb.from('likes').select('post_id').eq('user_id', uid()).in('post_id', ids)); jobs.push(sb.from('saves').select('post_id').eq('user_id', uid()).in('post_id', ids)); }
+    const [c, l, s] = await Promise.all(jobs);
+    const by = {}; (c.data || []).forEach((x) => (by[x.post_id] = by[x.post_id] || []).push(x));
+    rows.forEach((r) => { r.comments = (by[r.id] || []).slice(-perPost); });
+    (l?.data || []).forEach((x) => state.liked.add(x.post_id));
+    (s?.data || []).forEach((x) => state.saved.add(x.post_id));
+  },
+  async createPost(p) {
+    const { data, error } = await sb.from('posts').insert({ user_id: uid(), ...p }).select('id').single();
+    return error ? { error: dbError(error, 'Could not publish the post.') } : { id: data.id };
+  },
+  async deletePost(p) {
+    const { error } = await sb.from('posts').delete().eq('id', p.id);
+    if (error) return dbError(error, 'Could not delete the post.');
+    if (p.path && !/^(https?:|blob:)/.test(p.path)) await sb.storage.from(MEDIA_BUCKET).remove([p.path]);
+    return null;
+  },
+
+  /* ---------- interactions ---------- */
+  async setLike(postId, on) {
+    const q = on ? sb.from('likes').insert({ user_id: uid(), post_id: postId }) : sb.from('likes').delete().eq('user_id', uid()).eq('post_id', postId);
+    const { error } = await q; return error && error.code !== '23505' ? dbError(error) : null;
+  },
+  async setSave(postId, on) {
+    const q = on ? sb.from('saves').insert({ user_id: uid(), post_id: postId }) : sb.from('saves').delete().eq('user_id', uid()).eq('post_id', postId);
+    const { error } = await q; return error && error.code !== '23505' ? dbError(error) : null;
+  },
+  async addComment(postId, body) {
+    const { error } = await sb.from('comments').insert({ user_id: uid(), post_id: postId, body });
+    return error ? dbError(error, 'Could not post the comment.') : null;
+  },
+  async setFollow(userId, on) {
+    const q = on ? sb.from('follows').insert({ follower_id: uid(), following_id: userId }) : sb.from('follows').delete().eq('follower_id', uid()).eq('following_id', userId);
+    const { error } = await q; if (!error) on ? state.following.add(userId) : state.following.delete(userId);
+    return error && error.code !== '23505' ? dbError(error) : null;
+  },
+
+  /* ---------- strategies ---------- */
+  normS(r) {
+    return { id: r.id, user_id: r.user_id, handle: r.handle, badge: r.badge, tone: r.tone, slug: r.slug, title: r.title, tagline: r.tagline, market: r.market, session: r.session,
+      timeframe: r.timeframe, style: r.style, theme: r.theme, stats: r.stats || {}, steps: r.steps || [], followers: r.follower_count || 0, forks: r.fork_count || 0, fork_of: r.fork_of, created: Date.parse(r.created_at) };
+  },
+  async strategies({ user_id, ids, sort = 'followers', limit = 100 } = {}) {
+    let q = sb.from('strategies_list').select('*').limit(limit);
+    if (user_id) q = q.eq('user_id', user_id);
+    if (ids) { if (!ids.length) return []; q = q.in('id', ids); }
+    q = sort === 'new' ? q.order('created_at', { ascending: false }) : sort === 'forks' ? q.order('fork_count', { ascending: false }) : q.order('follower_count', { ascending: false });
+    const { data } = await q; return (data || []).map(DB.normS);
+  },
+  async strategy(id) {
+    const { data } = await sb.from('strategies_list').select('*').eq('id', id).maybeSingle();
+    return data ? DB.normS(data) : null;
+  },
+  async saveStrategy(row, editingId) {
+    const q = editingId ? sb.from('strategies').update(row).eq('id', editingId).select('id').single() : sb.from('strategies').insert({ user_id: uid(), ...row }).select('id').single();
+    const { data, error } = await q;
+    return error ? { error: dbError(error, 'Could not publish the strategy.') } : { id: data.id };
+  },
+  async setStrategyFollow(id, on) {
+    const q = on ? sb.from('strategy_follows').insert({ user_id: uid(), strategy_id: id }) : sb.from('strategy_follows').delete().eq('user_id', uid()).eq('strategy_id', id);
+    const { error } = await q; if (!error) on ? state.followedStrategies.add(id) : state.followedStrategies.delete(id);
+    return error && error.code !== '23505' ? dbError(error) : null;
+  },
 };
-const U = (h) => state.users[h];
-const S = (id) => state.strategies.find((s) => s.id === id);
-const P = (id) => state.posts.find((p) => p.id === id);

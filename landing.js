@@ -216,9 +216,14 @@ const Landing = (() => {
     $$('.mag').forEach((b) => { const mv = (e) => { const r = b.getBoundingClientRect(); b.style.transform = `translate(${(e.clientX - r.left - r.width / 2) * 0.18}px, ${(e.clientY - r.top - r.height / 2) * 0.18}px)`; };
       const lv = () => (b.style.transform = ''); b.addEventListener('mousemove', mv); b.addEventListener('mouseleave', lv); });
     // badge maker
-    const bi = $('#badgeIn'); const taken = (v) => Object.values(USERS).some((u) => u.badge === v);
-    bi.addEventListener('input', () => { const v = bi.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); bi.value = v; $('#bigBadge').textContent = v || '???'; $('#badgeGo').textContent = v.length !== 3 ? 'Badges are three letters' : taken(v) ? `${v} is taken` : `Claim ${v}`; });
-    $('#badgeGo').addEventListener('click', (e) => { e.preventDefault(); const v = bi.value; if (v.length !== 3 || taken(v)) { bi.focus(); return; } if (ME) { location.hash = '#/floor'; return; } openSignup({ badgeHint: v, then: () => { location.hash = '#/floor'; } }); });
+    const bi = $('#badgeIn'); const go = $('#badgeGo'); let _bt, _last = '';
+    const check = async (v) => { const t = await DB.isTaken('badge', v); if (bi.value === v) { go.textContent = t ? `${v} is taken` : `Claim ${v}`; go.dataset.taken = t ? '1' : ''; } };
+    bi.addEventListener('input', () => { const v = bi.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); bi.value = v; $('#bigBadge').textContent = v || '???'; go.dataset.taken = '';
+      go.textContent = v.length !== 3 ? 'Badges are three letters' : `Claim ${v}`; clearTimeout(_bt); if (v.length === 3 && v !== _last) { _last = v; _bt = setTimeout(() => check(v), 250); } });
+    go.addEventListener('click', (e) => { e.preventDefault(); const v = bi.value; if (v.length !== 3 || go.dataset.taken) { bi.focus(); return; }
+      if (ME) { location.hash = '#/floor'; return; }
+      sessionStorage.setItem(BADGE_KEY, v); sessionStorage.setItem(AFTER_KEY, '#/floor');
+      if (SESSION) openProfileSetup(); else openAuth({ badgeHint: v }); });
   }
   function intro() {
     const chs = $$('.wordmark .ch'); if (!chs.length || !window.gsap || reduced) return;
@@ -236,13 +241,28 @@ const Landing = (() => {
 /* ============ BOOT + PRELOADER ============ */
 (function boot() {
   if (window.gsap && window.ScrollTrigger) gsap.registerPlugin(ScrollTrigger);
-  const pre = $('#pre'); const onLanding = (location.hash || '#/') === '#/';
-  render();
+  const pre = $('#pre');
+  const q = new URLSearchParams(location.search); const hq = new URLSearchParams(location.hash.includes('error') ? location.hash.slice(1) : '');
+  const authErr = q.get('error_description') || hq.get('error_description');
+  const returning = q.has('code') || !!authErr;
+  const onLanding = !returning && (location.hash || '#/') === '#/';
+  const finish = async () => {
+    try { await DB.init(); } catch (e) { console.error(e); }
+    if (returning) {
+      const back = sessionStorage.getItem(AFTER_KEY) || '#/floor'; sessionStorage.removeItem(AFTER_KEY);
+      history.replaceState(null, '', location.pathname + back);
+      if (authErr) setTimeout(() => toast('Sign-in did not finish: ' + authErr.replace(/\+/g, ' ')), 400);
+    }
+    await render();
+    if (SESSION && !ME) openProfileSetup();
+    else if (returning && ME) toast('Signed in as @' + ME.handle);
+  };
+  const ready = finish();
   const fonts = document.fonts ? Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 2500))]) : Promise.resolve();
-  if (!onLanding || reduced || !window.gsap) { fonts.then(() => { pre.classList.add('gone'); Replays.forEach((s) => s.resize()); }); return; }
+  if (!onLanding || reduced || !window.gsap) { Promise.all([fonts, ready]).then(() => { pre.classList.add('gone'); Replays.forEach((s) => s.resize()); }); return; }
   const clock = $('#pre b'); const secs = ['09:29:57', '09:29:58', '09:29:59', '09:30:00']; let k = 0;
   const tick = setInterval(() => { k = Math.min(3, k + 1); clock.textContent = secs[k]; }, 320);
-  Promise.all([fonts, new Promise((r) => setTimeout(r, 1050))]).then(() => {
+  Promise.all([fonts, ready, new Promise((r) => setTimeout(r, 1050))]).then(() => {
     clearInterval(tick); clock.textContent = secs[3];
     gsap.timeline({ onComplete: () => pre.classList.add('gone') })
       .to('#pre .bell', { scaleX: 1, duration: 0.45, ease: 'expo.inOut' })

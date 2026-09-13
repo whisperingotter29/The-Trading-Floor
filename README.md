@@ -1,6 +1,13 @@
 # The Trading Floor
 
-Static front-end prototype (HTML/CSS/JS, GSAP + ScrollTrigger from cdnjs). The platform starts empty: no accounts, posts or strategies until visitors sign up and post. Open `index.html` or deploy the folder to Vercel as a static site.
+Static front end (HTML/CSS/JS, GSAP from cdnjs) backed by Supabase for accounts, database and media storage. Deploy the folder to Vercel as a static site; there is no build step.
+
+## Backend
+- Supabase project `The-Trading-Floor` (`grcldjuolszcidfitxgo`). URL and publishable key are in `data.js` — the publishable key is meant to be public, access is controlled by row level security.
+- Tables: `profiles`, `posts`, `comments`, `likes`, `saves`, `follows`, `strategies`, `strategy_follows`. Read views: `posts_feed`, `comments_list`, `strategies_list`, `profiles_stats`.
+- Every table has RLS: anyone can read public content, you can only write rows that belong to you, and `saves` are private to you.
+- Uploads go to the public `media` bucket under `<user-id>/posts/` or `<user-id>/steps/`. 50 MB cap, images plus MP4/MOV/WebM.
+- Auth: Google OAuth and emailed sign-in link/6-digit code. Sign-in is step one; the handle and badge profile is step two.
 
 ## Routes (hash-based)
 - `#/` landing: opening-bell preloader, candle Scene, strategy book, replays, badge picker
@@ -14,9 +21,12 @@ Static front-end prototype (HTML/CSS/JS, GSAP + ScrollTrigger from cdnjs). The p
 Accounts are created in the sign-up sheet (name, handle, three-letter badge). Posting, liking, commenting, following and publishing ask for an account first.
 
 ## Editing
-- App state (starts empty): `data.js`
+- Backend calls and keys: `data.js`
 - Colors and fonts: `:root` tokens at the top of `styles.css`; empty states and sign-up in `floor.css`
 - Scene timing: the `KF` keyframe table in `landing.js`
 
-## Not built yet
-State is in memory (resets on reload). Accounts, storage for uploads, and persistence need a backend (Supabase fits: auth, Postgres for posts/strategies, Storage for media).
+## Before a public launch
+- Enable the Google provider in Supabase Auth and add the site URL + redirect URLs.
+- Add custom SMTP (Resend/SendGrid) — the built-in email sender is rate limited and testing-only.
+- Turn off Vercel deployment protection so the site is publicly reachable.
+- Add terms, privacy policy, reporting and account deletion.
