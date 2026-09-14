@@ -81,6 +81,7 @@ const Landing = (() => {
         <a class="btn btn-floor mag" href="#/floor" id="badgeGo">Claim a badge</a></div></section>
 
     <footer class="land-foot"><div class="big">The Trading<br>Floor</div><div style="display:grid;gap:10px;justify-items:end"><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn btn-line btn-sm" href="#/discover">Strategies</a><a class="btn btn-line btn-sm" href="#/replays">Replays</a><a class="btn btn-line btn-sm" href="#/builder">Builder</a></div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:flex-end"><a href="privacy.html" style="color:var(--muted);font-size:13px">Privacy</a><a href="terms.html" style="color:var(--muted);font-size:13px">Terms</a></div>
       <small>Trades and results are posted by users and are not financial advice.</small></div></footer>
     </main>`;
   }
