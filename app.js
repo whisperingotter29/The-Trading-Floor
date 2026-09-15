@@ -15,6 +15,8 @@ const I = {
   floor: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v4M6 17v4M12 2v5M12 17v5M18 5v4M18 15v4"/><rect x="4" y="7" width="4" height="10"/><rect x="10" y="7" width="4" height="10"/><rect x="16" y="9" width="4" height="6"/></svg>',
   replay: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2" width="14" height="20"/><path d="M10 9l5 3-5 3z"/></svg>',
   upload: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>',
+  news: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h13v14H4zM17 9h3v8a2 2 0 0 1-3 0V9z"/><path d="M7 8h7M7 11h7M7 14h4"/></svg>',
+  ext: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
   discover: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
   builder: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
   profile: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18"/><path d="M10 6h4"/><circle cx="12" cy="11.5" r="2.8"/><path d="M7.5 18.5c1.2-2.6 7.8-2.6 9 0"/></svg>',
@@ -177,7 +179,7 @@ function hydrateMedia(root = document) {
 function destroyMedia() { if (_vio) { _vio.disconnect(); _vio = null; } }
 
 /* ============ SHELL ============ */
-const NAV = [['floor', 'The Floor', I.floor], ['replays', 'Replays', I.replay], ['discover', 'Discover strategies', I.discover], ['builder', 'Strategy builder', I.builder], ['me', 'Profile', I.profile]];
+const NAV = [['floor', 'The Floor', I.floor], ['replays', 'Replays', I.replay], ['news', 'News', I.news], ['discover', 'Discover strategies', I.discover], ['builder', 'Strategy builder', I.builder], ['me', 'Profile', I.profile]];
 function shell(active, inner) {
   const links = NAV.map(([k, l, ic]) => `<a href="#/${k}" ${active === k ? 'aria-current="page"' : ''}>${ic}<span>${l}</span></a>`).join('');
   const tabs = NAV.map(([k, l, ic]) => `<a href="#/${k}" aria-label="${l}" ${active === k ? 'aria-current="page"' : ''}>${ic}</a>`).join('');
@@ -260,6 +262,68 @@ async function replaysView() {
         ${p.strategy_id ? `<a class="act" href="#/s/${p.strategy_id}" aria-label="Strategy">${I.builder}<span>Strategy</span></a>` : ''}
       </div></section>`; }).join('');
   return shell('replays', `<div class="reels">${reels}</div>`);
+}
+
+/* ============ NEWS ============ */
+/* Headlines and market video from public RSS feeds. Everything links back to
+   the publisher; videos play in YouTube's own embedded player. */
+const news = { tab: 'video', source: 'All' };
+let newsCursor = null, newsDone = false, _newsIO = null, _newsLoading = false;
+const NEWS_SRC = { video: ['All', 'Bloomberg Television', 'CNBC', 'Wall Street Journal', 'Financial Times', 'Fox News', 'NBC News', 'CBS News'],
+                   article: ['All', 'CNBC', 'MarketWatch', 'Financial Times', 'Fox Business', 'Fox News', 'NBC News', 'CBS MoneyWatch'] };
+function newsCard(n) {
+  const when = ago(n.t) + ' ago';
+  if (n.kind === 'video') {
+    return `<article class="ncard nvid" data-vid="${esc(n.video_id)}">
+      <button class="nthumb" data-act="play-news" data-id="${esc(n.id)}" data-vid="${esc(n.video_id)}" aria-label="Play: ${esc(n.title)}">
+        <img src="${esc(n.image_url || '')}" alt="" loading="lazy"><span class="nplay" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4l14 8-14 8z"/></svg></span></button>
+      <div class="nbody"><div class="nmeta"><span class="nsrc">${esc(n.source)}</span><span>${when}</span></div>
+        <h3>${esc(n.title)}</h3></div></article>`;
+  }
+  return `<a class="ncard nart" href="${esc(n.url)}" target="_blank" rel="noopener noreferrer">
+    ${n.image_url ? `<div class="nthumb"><img src="${esc(n.image_url)}" alt="" loading="lazy"></div>` : ''}
+    <div class="nbody"><div class="nmeta"><span class="nsrc">${esc(n.source)}</span><span>${when}</span></div>
+      <h3>${esc(n.title)}</h3>${n.summary ? `<p>${esc(n.summary.slice(0, 180))}</p>` : ''}
+      <span class="nlink">Read at ${esc(n.source)}${I.ext}</span></div></a>`;
+}
+async function newsView() {
+  const { rows, error } = await DB.news({ kind: news.tab, source: news.source });
+  if (error) return shell('news', `<div class="page">${errorBlock(error)}</div>`);
+  newsCursor = rows.length ? rows[rows.length - 1].published_at : null; newsDone = rows.length < 24;
+  const tabs = [['video', 'Video'], ['article', 'Headlines']].map(([k, l]) => `<button class="chip" data-act="news-tab" data-t="${k}" aria-pressed="${news.tab === k}">${l}</button>`).join('');
+  const srcs = NEWS_SRC[news.tab].map((s) => `<button class="chip" data-act="news-src" data-v="${esc(s)}" aria-pressed="${news.source === s}">${esc(s)}</button>`).join('');
+  const body = rows.length
+    ? `<div class="ngrid ${news.tab === 'video' ? 'nvids' : 'narts'}">${rows.map(newsCard).join('')}</div>${newsDone ? '' : `<div class="feed-more" id="newsMore">${loadingBlock()}</div>`}`
+    : emptyBlock('Nothing here yet.', 'The news feed refreshes every 15 minutes. If this stays empty, the sources may be temporarily unreachable.', '');
+  return shell('news', `<div class="page">
+    <div class="page-h"><div><h1>News</h1><p>Market video and headlines from the wires, refreshed every 15 minutes. Everything opens at the publisher.</p></div></div>
+    <div class="feed-tabs" role="group" aria-label="News type">${tabs}</div>
+    <div class="disc-chips" role="group" aria-label="Source">${srcs}</div>
+    <div id="newsList">${body}</div></div>`);
+}
+function watchNewsMore() {
+  if (_newsIO) _newsIO.disconnect();
+  const el = $('#newsMore'); if (!el) return;
+  _newsIO = new IntersectionObserver(async (es) => {
+    if (!es[0].isIntersecting || _newsLoading || newsDone) return; _newsLoading = true;
+    const { rows } = await DB.news({ kind: news.tab, source: news.source, before: newsCursor });
+    _newsLoading = false;
+    const grid = $('#newsList .ngrid'); if (!grid) return;
+    $('#newsMore')?.remove();
+    grid.insertAdjacentHTML('beforeend', rows.map(newsCard).join(''));
+    newsCursor = rows.length ? rows[rows.length - 1].published_at : newsCursor; newsDone = rows.length < 24;
+    if (!newsDone) grid.insertAdjacentHTML('afterend', `<div class="feed-more" id="newsMore">${loadingBlock()}</div>`);
+    watchNewsMore();
+  }, { rootMargin: '600px' });
+  _newsIO.observe(el);
+}
+/* swap the thumbnail for YouTube's player, only after a click */
+function playNews(btn) {
+  const vid = btn.dataset.vid; const card = btn.closest('.ncard');
+  $$('.ncard .nframe').forEach((f) => { const c = f.closest('.ncard'); c.innerHTML = c.dataset.thumb; });
+  card.dataset.thumb = card.innerHTML;
+  const title = card.querySelector('h3')?.textContent || 'Video';
+  btn.outerHTML = `<div class="nthumb nframe"><iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(vid)}?autoplay=1&rel=0" title="${esc(title)}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>`;
 }
 
 /* ============ DISCOVER ============ */
@@ -556,6 +620,9 @@ document.addEventListener('click', async (e) => {
       closeModal(); $$(`[data-post="${id}"]`).forEach((n) => n.remove()); toast('Post deleted'); break; }
     case 'focus-cmt': $(`#c-${id}`)?.focus(); break;
     case 'feed-filter': feedFilter = el.dataset.f; render(); break;
+    case 'news-tab': news.tab = el.dataset.t; news.source = 'All'; render(); break;
+    case 'news-src': news.source = el.dataset.v; render(); break;
+    case 'play-news': playNews(el); break;
     case 'disc-style': disc.style = el.dataset.v; $$('[data-act="disc-style"]').forEach((b) => b.setAttribute('aria-pressed', b === el)); renderDiscGrid(); break;
     case 'follow-strat': { if (!need()) break; const on = !state.followedStrategies.has(id); const m = await DB.setStrategyFollow(id, on); if (m) { toast(m); break; } render(true); toast(on ? 'Following strategy' : 'Unfollowed strategy'); break; }
     case 'fork': state.draft = null; location.hash = '#/builder?fork=' + id; break;
@@ -619,16 +686,17 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.
 /* ============ ROUTER ============ */
 let lastRoute = null, _tok = 0;
 function parseHash() { const h = location.hash.replace(/^#/, '') || '/'; const [path, qs] = h.split('?'); return { parts: path.split('/').filter(Boolean), params: new URLSearchParams(qs || '') }; }
-const ACTIVE = { floor: 'floor', replays: 'replays', discover: 'discover', s: 'discover', u: 'discover', me: 'me', builder: 'builder' };
+const ACTIVE = { floor: 'floor', replays: 'replays', news: 'news', discover: 'discover', s: 'discover', u: 'discover', me: 'me', builder: 'builder' };
 async function render(keepScroll = false) {
   const tok = ++_tok; const y = scrollY; const { parts, params } = parseHash(); const r = parts[0] || '';
-  destroyReplays(); destroyMedia(); if (_moreIO) _moreIO.disconnect(); Landing.destroy(); POSTS.clear();
+  destroyReplays(); destroyMedia(); if (_moreIO) _moreIO.disconnect(); if (_newsIO) _newsIO.disconnect(); Landing.destroy(); POSTS.clear();
   const app = $('#app');
   if (r === '') { closeModal(); app.innerHTML = Landing.html(); document.title = 'The Trading Floor'; Landing.init(); window.scrollTo(0, 0); lastRoute = '#/'; return; }
   if (!keepScroll) app.innerHTML = shell(ACTIVE[r] || 'floor', `<div class="page">${loadingBlock()}</div>`);
   let html;
   try {
     if (r === 'floor') html = await feedView();
+    else if (r === 'news') html = await newsView();
     else if (r === 'replays') html = await replaysView();
     else if (r === 'discover') html = await discoverView();
     else if (r === 's') html = await strategyView(parts[1]);
@@ -639,10 +707,11 @@ async function render(keepScroll = false) {
   } catch (err) { console.error(err); html = shell(ACTIVE[r] || 'floor', `<div class="page">${errorBlock('Could not reach the server. Check your connection and try again.')}</div>`); }
   if (tok !== _tok) return; // a newer navigation started while this one was loading
   app.innerHTML = html;
-  if (!['s', 'u', 'me'].includes(r) || !document.title.includes('|')) document.title = `${({ floor: 'The Floor', replays: 'Replays', discover: 'Discover strategies', s: 'Strategy', u: 'Profile', me: 'Profile', builder: 'Strategy builder' })[r] || 'Not found'} | The Trading Floor`;
+  if (!['s', 'u', 'me'].includes(r) || !document.title.includes('|')) document.title = `${({ floor: 'The Floor', replays: 'Replays', news: 'News', discover: 'Discover strategies', s: 'Strategy', u: 'Profile', me: 'Profile', builder: 'Strategy builder' })[r] || 'Not found'} | The Trading Floor`;
   if (r === 'discover') renderDiscGrid();
   if (r === 'builder') renderBuilder();
   if (r === 'floor') watchFeedMore();
+  if (r === 'news') watchNewsMore();
   hydrateMedia(app);
   window.scrollTo(0, keepScroll ? y : 0);
   lastRoute = location.hash.split('?')[0];

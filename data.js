@@ -166,6 +166,24 @@ const DB = {
     return error && error.code !== '23505' ? dbError(error) : null;
   },
 
+  /* ---------- news ---------- */
+  /* Headlines and video links pulled from public RSS feeds by a scheduled
+     function. We store only title, link, thumbnail and a short summary, and
+     always send people to the publisher to read or watch. */
+  async news({ kind, source, before, limit = 24 } = {}) {
+    let q = sb.from('news_items').select('*').order('published_at', { ascending: false }).limit(limit);
+    if (kind) q = q.eq('kind', kind);
+    if (source && source !== 'All') q = q.eq('source', source);
+    if (before) q = q.lt('published_at', before);
+    const { data, error } = await q;
+    if (error) return { rows: [], error: dbError(error, 'Could not load the news.') };
+    return { rows: data.map((r) => ({ ...r, t: Date.parse(r.published_at) })) };
+  },
+  async newsSources() {
+    const { data } = await sb.from('news_sources').select('label, kind, enabled').eq('enabled', true);
+    return data || [];
+  },
+
   /* ---------- strategies ---------- */
   normS(r) {
     return { id: r.id, user_id: r.user_id, handle: r.handle, badge: r.badge, tone: r.tone, slug: r.slug, title: r.title, tagline: r.tagline, market: r.market, session: r.session,
