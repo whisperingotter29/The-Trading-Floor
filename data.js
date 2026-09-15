@@ -18,6 +18,9 @@ const state = { liked: new Set(), saved: new Set(), following: new Set(), follow
 function dbError(error, fallback) {
   if (!error) return null;
   const m = (error.message || '') + ' ' + (error.details || '');
+  if (/PROFANITY_HANDLE/.test(m)) return 'That handle is not allowed. Please choose another one.';
+  if (/PROFANITY_NAME/.test(m)) return 'That display name is not allowed. Please choose another one.';
+  if (/PROFANITY_BADGE/.test(m)) return 'That badge is not allowed. Please pick three different letters.';
   if (error.code === '23505' && /handle/.test(m)) return 'That handle is taken. Try another one.';
   if (error.code === '23505' && /badge/.test(m)) return 'That badge is taken. Pick another three letters.';
   if (/JWT|not authenticated|permission denied|row-level security/i.test(m)) return 'Your session ended. Sign in again and retry.';
