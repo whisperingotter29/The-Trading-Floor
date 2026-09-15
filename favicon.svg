@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="The Trading Floor">
+  <title>The Trading Floor</title>
+  <rect width="64" height="64" rx="12" fill="#18A583"/>
+  <!-- the single candle from the landing page: wick through a solid body -->
+  <rect x="28.5" y="5" width="7" height="54" rx="3.5" fill="#07140F"/>
+  <rect x="21" y="20" width="22" height="24" rx="3" fill="#07140F"/>
+</svg>
