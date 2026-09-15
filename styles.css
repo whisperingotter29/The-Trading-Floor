@@ -390,8 +390,9 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; min-height:
   .rail { display: none; }
   .topbar { display: flex; position: sticky; top: 0; z-index: 30; height: 56px; align-items: center; justify-content: space-between; padding: 0 14px; background: rgba(7,20,15,.94); border-bottom: 1px solid var(--line); backdrop-filter: blur(8px); }
   .topbar .mark { font-family: var(--display); font-weight: 900; font-size: 22px; line-height: .85; }
-  .tabbar { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; height: 60px; background: var(--board); border-top: 1px solid var(--line); }
+  .tabbar { display: grid; grid-template-columns: repeat(6, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; height: 60px; background: var(--board); border-top: 1px solid var(--line); }
   .tabbar a { display: grid; place-items: center; color: var(--muted); }
+  .tabbar svg { width: 20px; height: 20px; }
   .tabbar a[aria-current="page"] { color: var(--floor); }
   .cols { padding: 16px 14px 60px; }
   .page { padding: 20px 14px 80px; }

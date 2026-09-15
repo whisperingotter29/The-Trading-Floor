@@ -114,7 +114,39 @@ button.nthumb { cursor: pointer; }
 .nlink svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.8; }
 a.ncard:hover .nlink { color: var(--ink); }
 .nart .nthumb { aspect-ratio: 2 / 1; }
+.news-head { display: grid; gap: 10px; }
+.newswrap { display: grid; grid-template-rows: auto minmax(0, 1fr); height: 100vh; padding: 20px clamp(16px, 3vw, 40px) 0; gap: 14px; }
+
+/* video reels: one clip per screen, snap scrolling like the replays tab */
+.nreels { overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain; scrollbar-width: none; }
+.nreels::-webkit-scrollbar { display: none; }
+.nreel { height: 100%; scroll-snap-align: center; scroll-snap-stop: always; display: grid; grid-template-columns: minmax(0, 1fr) 64px; align-items: center; gap: 14px; padding-bottom: 14px; }
+.nstage { min-width: 0; max-width: 1000px; margin: 0 auto; width: 100%; display: grid; gap: 14px; align-content: center; }
+.nscreen { position: relative; aspect-ratio: 16 / 9; background: #000; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.nscreen iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.nposter { width: 100%; height: 100%; object-fit: cover; }
+.nreel.on .nposter, .nreel.on .nplay { display: none; }
+.ncap { display: grid; gap: 6px; }
+.ncap h3 { font-size: clamp(17px, 1.7vw, 22px); font-weight: 600; line-height: 1.25; }
+.nacts { display: grid; gap: 14px; justify-items: center; align-self: end; padding-bottom: 8vh; }
+.nacts .act { flex-direction: column; height: auto; padding: 8px; gap: 4px; font-size: 12px; text-align: center; }
+.nacts .act[aria-pressed="true"] svg { stroke: var(--floor); }
+
 @media (max-width: 760px) {
   .ngrid.nvids, .ngrid.narts { grid-template-columns: 1fr; }
   .ngrid { gap: 16px; }
+  .newswrap { height: calc(100vh - 116px); padding: 10px 0 0; gap: 10px; }
+  .news-head { gap: 8px; }
+  /* one scrollable row of chips instead of three stacked rows */
+  .news-head .feed-tabs, .news-head .disc-chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0; padding: 0 14px; }
+  .news-head .feed-tabs::-webkit-scrollbar, .news-head .disc-chips::-webkit-scrollbar { display: none; }
+  .news-head .chip { flex: none; }
+  .nreels { padding: 0 14px; }
+  .nreel { grid-template-columns: 1fr; align-content: center; position: relative; }
+  .nacts { position: absolute; right: 4px; bottom: 26%; padding-bottom: 0; }
+  .nacts .act span { display: none; }
+  .ncap { padding-right: 60px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nreels { scroll-snap-type: none; }
 }

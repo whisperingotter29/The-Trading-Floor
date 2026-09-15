@@ -16,6 +16,7 @@ const I = {
   replay: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2" width="14" height="20"/><path d="M10 9l5 3-5 3z"/></svg>',
   upload: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>',
   news: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h13v14H4zM17 9h3v8a2 2 0 0 1-3 0V9z"/><path d="M7 8h7M7 11h7M7 14h4"/></svg>',
+  sound: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9h3l4-4v14l-4-4H5z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg>',
   ext: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
   discover: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
   builder: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
@@ -273,13 +274,6 @@ const NEWS_SRC = { video: ['All', 'Bloomberg Television', 'CNBC', 'Wall Street J
                    article: ['All', 'CNBC', 'MarketWatch', 'Financial Times', 'Fox Business', 'Fox News', 'NBC News', 'CBS MoneyWatch'] };
 function newsCard(n) {
   const when = ago(n.t) + ' ago';
-  if (n.kind === 'video') {
-    return `<article class="ncard nvid" data-vid="${esc(n.video_id)}">
-      <button class="nthumb" data-act="play-news" data-id="${esc(n.id)}" data-vid="${esc(n.video_id)}" aria-label="Play: ${esc(n.title)}">
-        <img src="${esc(n.image_url || '')}" alt="" loading="lazy"><span class="nplay" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4l14 8-14 8z"/></svg></span></button>
-      <div class="nbody"><div class="nmeta"><span class="nsrc">${esc(n.source)}</span><span>${when}</span></div>
-        <h3>${esc(n.title)}</h3></div></article>`;
-  }
   return `<a class="ncard nart" href="${esc(n.url)}" target="_blank" rel="noopener noreferrer">
     ${n.image_url ? `<div class="nthumb"><img src="${esc(n.image_url)}" alt="" loading="lazy"></div>` : ''}
     <div class="nbody"><div class="nmeta"><span class="nsrc">${esc(n.source)}</span><span>${when}</span></div>
@@ -292,38 +286,91 @@ async function newsView() {
   newsCursor = rows.length ? rows[rows.length - 1].published_at : null; newsDone = rows.length < 24;
   const tabs = [['video', 'Video'], ['article', 'Headlines']].map(([k, l]) => `<button class="chip" data-act="news-tab" data-t="${k}" aria-pressed="${news.tab === k}">${l}</button>`).join('');
   const srcs = NEWS_SRC[news.tab].map((s) => `<button class="chip" data-act="news-src" data-v="${esc(s)}" aria-pressed="${news.source === s}">${esc(s)}</button>`).join('');
-  const body = rows.length
-    ? `<div class="ngrid ${news.tab === 'video' ? 'nvids' : 'narts'}">${rows.map(newsCard).join('')}</div>${newsDone ? '' : `<div class="feed-more" id="newsMore">${loadingBlock()}</div>`}`
-    : emptyBlock('Nothing here yet.', 'The news feed refreshes every 15 minutes. If this stays empty, the sources may be temporarily unreachable.', '');
+  const head = `<div class="news-head"><div class="feed-tabs" role="group" aria-label="News type">${tabs}</div>
+    <div class="disc-chips" role="group" aria-label="Source">${srcs}</div></div>`;
+  if (!rows.length) return shell('news', `<div class="page">
+    <div class="page-h"><div><h1>News</h1><p>Market video and headlines from the wires, refreshed every 15 minutes.</p></div></div>
+    ${head}${emptyBlock('Nothing here yet.', 'The news feed refreshes every 15 minutes. If this stays empty, the sources may be temporarily unreachable.', '')}</div>`);
+  if (news.tab === 'video') {
+    return shell('news', `<div class="newswrap">${head}
+      <div class="nreels" id="newsList">${rows.map(reelHTML).join('')}${newsDone ? '' : `<div class="feed-more" id="newsMore">${loadingBlock()}</div>`}</div></div>`);
+  }
   return shell('news', `<div class="page">
-    <div class="page-h"><div><h1>News</h1><p>Market video and headlines from the wires, refreshed every 15 minutes. Everything opens at the publisher.</p></div></div>
-    <div class="feed-tabs" role="group" aria-label="News type">${tabs}</div>
-    <div class="disc-chips" role="group" aria-label="Source">${srcs}</div>
-    <div id="newsList">${body}</div></div>`);
+    <div class="page-h"><div><h1>News</h1><p>Market headlines from the wires, refreshed every 15 minutes. Everything opens at the publisher.</p></div></div>
+    ${head}
+    <div id="newsList"><div class="ngrid narts">${rows.map(newsCard).join('')}</div>${newsDone ? '' : `<div class="feed-more" id="newsMore">${loadingBlock()}</div>`}</div></div>`);
 }
 function watchNewsMore() {
   if (_newsIO) _newsIO.disconnect();
   const el = $('#newsMore'); if (!el) return;
+  const root = news.tab === 'video' ? $('.nreels') : null;
   _newsIO = new IntersectionObserver(async (es) => {
     if (!es[0].isIntersecting || _newsLoading || newsDone) return; _newsLoading = true;
     const { rows } = await DB.news({ kind: news.tab, source: news.source, before: newsCursor });
     _newsLoading = false;
-    const grid = $('#newsList .ngrid'); if (!grid) return;
+    const list = $('#newsList'); if (!list) return;
+    const grid = news.tab === 'video' ? list : list.querySelector('.ngrid');
     $('#newsMore')?.remove();
-    grid.insertAdjacentHTML('beforeend', rows.map(newsCard).join(''));
+    grid.insertAdjacentHTML('beforeend', rows.map(news.tab === 'video' ? reelHTML : newsCard).join(''));
     newsCursor = rows.length ? rows[rows.length - 1].published_at : newsCursor; newsDone = rows.length < 24;
-    if (!newsDone) grid.insertAdjacentHTML('afterend', `<div class="feed-more" id="newsMore">${loadingBlock()}</div>`);
+    if (!newsDone) grid.insertAdjacentHTML('beforeend', `<div class="feed-more" id="newsMore">${loadingBlock()}</div>`);
+    if (news.tab === 'video') watchReels();
     watchNewsMore();
-  }, { rootMargin: '600px' });
+  }, { root, rootMargin: '600px' });
   _newsIO.observe(el);
 }
-/* swap the thumbnail for YouTube's player, only after a click */
-function playNews(btn) {
-  const vid = btn.dataset.vid; const card = btn.closest('.ncard');
-  $$('.ncard .nframe').forEach((f) => { const c = f.closest('.ncard'); c.innerHTML = c.dataset.thumb; });
-  card.dataset.thumb = card.innerHTML;
-  const title = card.querySelector('h3')?.textContent || 'Video';
-  btn.outerHTML = `<div class="nthumb nframe"><iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(vid)}?autoplay=1&rel=0" title="${esc(title)}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe></div>`;
+/* ---- video reels: one clip per screen, plays as it scrolls into view ---- */
+/* The player only loads for the clip you are on, so nothing from YouTube is
+   requested for clips you never reach. Sound starts off, as browsers require. */
+let newsMuted = true;
+function reelHTML(n) {
+  return `<section class="nreel" data-vid="${esc(n.video_id)}" data-title="${esc(n.title)}">
+    <div class="nstage">
+      <div class="nscreen"><img class="nposter" src="${esc(n.image_url || '')}" alt="" loading="lazy">
+        <span class="nplay" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 4l14 8-14 8z"/></svg></span></div>
+      <div class="ncap"><div class="nmeta"><span class="nsrc">${esc(n.source)}</span><span>${ago(n.t)} ago</span></div>
+        <h3>${esc(n.title)}</h3></div>
+    </div>
+    <div class="nacts">
+      <button class="act" data-act="news-mute" aria-label="Sound on or off">${I.sound}<span class="nsoundtxt">${newsMuted ? 'Sound off' : 'Sound on'}</span></button>
+      <a class="act" href="https://www.youtube.com/watch?v=${esc(n.video_id)}" target="_blank" rel="noopener noreferrer" aria-label="Watch on YouTube">${I.ext}<span>YouTube</span></a>
+    </div>
+  </section>`;
+}
+/* talk to the embedded player without loading YouTube's API script */
+function reelCmd(frame, func, args = []) {
+  try { frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args }), '*'); } catch (e) {}
+}
+function mountReel(reel) {
+  if (reel.querySelector('iframe')) return;
+  const screen = reel.querySelector('.nscreen');
+  const vid = reel.dataset.vid;
+  const f = document.createElement('iframe');
+  f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(vid)}?autoplay=1&mute=${newsMuted ? 1 : 0}&rel=0&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(location.origin)}`;
+  f.title = reel.dataset.title || 'Video'; f.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share';
+  f.referrerPolicy = 'strict-origin-when-cross-origin'; f.allowFullscreen = true; f.frameBorder = '0';
+  screen.appendChild(f); reel.classList.add('on');
+}
+function unmountReel(reel) {
+  const f = reel.querySelector('iframe'); if (f) f.remove();
+  reel.classList.remove('on');
+}
+let _reelIO = null;
+function watchReels() {
+  if (_reelIO) _reelIO.disconnect();
+  const reels = $$('.nreel'); if (!reels.length) return;
+  _reelIO = new IntersectionObserver((es) => es.forEach((e) => {
+    if (e.intersectionRatio > 0.6) { if (!reduced) mountReel(e.target); }
+    else unmountReel(e.target);
+  }), { threshold: [0, 0.6, 1] });
+  reels.forEach((r) => _reelIO.observe(r));
+}
+function destroyReels() { if (_reelIO) { _reelIO.disconnect(); _reelIO = null; } $$('.nreel').forEach(unmountReel); }
+function toggleNewsSound() {
+  newsMuted = !newsMuted;
+  $$('.nreel iframe').forEach((f) => reelCmd(f, newsMuted ? 'mute' : 'unMute'));
+  $$('.nsoundtxt').forEach((s) => (s.textContent = newsMuted ? 'Sound off' : 'Sound on'));
+  $$('[data-act="news-mute"]').forEach((b) => b.setAttribute('aria-pressed', String(!newsMuted)));
 }
 
 /* ============ DISCOVER ============ */
@@ -622,7 +669,7 @@ document.addEventListener('click', async (e) => {
     case 'feed-filter': feedFilter = el.dataset.f; render(); break;
     case 'news-tab': news.tab = el.dataset.t; news.source = 'All'; render(); break;
     case 'news-src': news.source = el.dataset.v; render(); break;
-    case 'play-news': playNews(el); break;
+    case 'news-mute': toggleNewsSound(); break;
     case 'disc-style': disc.style = el.dataset.v; $$('[data-act="disc-style"]').forEach((b) => b.setAttribute('aria-pressed', b === el)); renderDiscGrid(); break;
     case 'follow-strat': { if (!need()) break; const on = !state.followedStrategies.has(id); const m = await DB.setStrategyFollow(id, on); if (m) { toast(m); break; } render(true); toast(on ? 'Following strategy' : 'Unfollowed strategy'); break; }
     case 'fork': state.draft = null; location.hash = '#/builder?fork=' + id; break;
@@ -689,7 +736,7 @@ function parseHash() { const h = location.hash.replace(/^#/, '') || '/'; const [
 const ACTIVE = { floor: 'floor', replays: 'replays', news: 'news', discover: 'discover', s: 'discover', u: 'discover', me: 'me', builder: 'builder' };
 async function render(keepScroll = false) {
   const tok = ++_tok; const y = scrollY; const { parts, params } = parseHash(); const r = parts[0] || '';
-  destroyReplays(); destroyMedia(); if (_moreIO) _moreIO.disconnect(); if (_newsIO) _newsIO.disconnect(); Landing.destroy(); POSTS.clear();
+  destroyReplays(); destroyMedia(); if (_moreIO) _moreIO.disconnect(); if (_newsIO) _newsIO.disconnect(); destroyReels(); Landing.destroy(); POSTS.clear();
   const app = $('#app');
   if (r === '') { closeModal(); app.innerHTML = Landing.html(); document.title = 'The Trading Floor'; Landing.init(); window.scrollTo(0, 0); lastRoute = '#/'; return; }
   if (!keepScroll) app.innerHTML = shell(ACTIVE[r] || 'floor', `<div class="page">${loadingBlock()}</div>`);
@@ -711,7 +758,7 @@ async function render(keepScroll = false) {
   if (r === 'discover') renderDiscGrid();
   if (r === 'builder') renderBuilder();
   if (r === 'floor') watchFeedMore();
-  if (r === 'news') watchNewsMore();
+  if (r === 'news') { watchNewsMore(); if (news.tab === 'video') watchReels(); }
   hydrateMedia(app);
   window.scrollTo(0, keepScroll ? y : 0);
   lastRoute = location.hash.split('?')[0];
