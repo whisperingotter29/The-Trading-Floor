@@ -169,6 +169,37 @@ const DB = {
     return error && error.code !== '23505' ? dbError(error) : null;
   },
 
+  /* ---------- search ---------- */
+  /* Free-text search across traders, posts and strategies. PostgREST's or()
+     filter treats commas and parens as syntax, so the query is stripped first. */
+  clean(q) { return String(q || '').replace(/[,()%*\\]/g, ' ').trim().slice(0, 60); },
+  async searchProfiles(q, limit = 24) {
+    const s = DB.clean(q); if (!s) return [];
+    const { data } = await sb.from('profiles_stats').select('*')
+      .or(`handle.ilike.%${s}%,name.ilike.%${s}%,bio.ilike.%${s}%`).limit(limit);
+    return data || [];
+  },
+  async searchPosts(q, { video, limit = 30 } = {}) {
+    const s = DB.clean(q);
+    let sel = sb.from('posts_feed').select('*').order('created_at', { ascending: false }).limit(limit);
+    if (video) sel = sel.eq('media_type', 'video');
+    if (s) sel = sel.or(`caption.ilike.%${s}%,sym.ilike.%${s}%,handle.ilike.%${s}%,session.ilike.%${s}%`);
+    const { data, error } = await sel;
+    if (error) return { rows: [], error: dbError(error, 'Could not search posts.') };
+    return { rows: data.map(DB.norm) };
+  },
+  async searchStrategies(q, limit = 24) {
+    const s = DB.clean(q);
+    let sel = sb.from('strategies_list').select('*').order('follower_count', { ascending: false }).limit(limit);
+    if (s) sel = sel.or(`title.ilike.%${s}%,tagline.ilike.%${s}%,market.ilike.%${s}%,style.ilike.%${s}%,handle.ilike.%${s}%`);
+    const { data } = await sel;
+    return (data || []).map(DB.normS);
+  },
+  async topTraders(limit = 12) {
+    const { data } = await sb.from('profiles_stats').select('*').order('follower_count', { ascending: false }).limit(limit);
+    return data || [];
+  },
+
   /* ---------- news ---------- */
   /* Headlines and video links pulled from public RSS feeds by a scheduled
      function. We store only title, link, thumbnail and a short summary, and

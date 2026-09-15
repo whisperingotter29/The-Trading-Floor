@@ -150,3 +150,25 @@ a.ncard:hover .nlink { color: var(--ink); }
 @media (prefers-reduced-motion: reduce) {
   .nreels { scroll-snap-type: none; }
 }
+
+/* ============ EXPLORE ============ */
+.exsearch { position: relative; display: flex; align-items: center; margin-bottom: 14px; }
+.exsearch svg { position: absolute; left: 12px; width: 18px; height: 18px; stroke: var(--muted); fill: none; stroke-width: 1.8; pointer-events: none; }
+.exsearch .input { height: 48px; padding-left: 40px; padding-right: 44px; font-size: 16px; }
+.exsearch .ib { position: absolute; right: 8px; }
+.exgrid { grid-template-columns: repeat(auto-fill, minmax(clamp(110px, 20vw, 190px), 1fr)); }
+.tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.tcard { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--board-2); }
+.tinfo { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.tinfo strong { font-size: 15px; }
+.tinfo small { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tstat { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.tcard .btn { flex: none; }
+.exrow { margin-bottom: 34px; }
+.exrow > header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.exrow h2 { font-family: var(--display); font-weight: 800; font-size: clamp(24px, 2.6vw, 34px); line-height: 1; }
+@media (max-width: 760px) {
+  .tgrid { grid-template-columns: 1fr; }
+  .exsearch .input { height: 44px; }
+  .page-h + .exsearch { margin-top: 4px; }
+}

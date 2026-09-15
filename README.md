@@ -16,6 +16,7 @@ Static front end (HTML/CSS/JS, GSAP from cdnjs) backed by Supabase for accounts,
 - `#/floor` feed (filters, like, double-tap like, comments, save) and `Post a trade` composer (image or video upload, profit/loss in dollars, optional risk:reward)
 - `#/replays` vertical snap feed of uploaded screen recordings (MP4, MOV, WebM)
 - `#/news` market video and headlines pulled from public RSS feeds (see Backend)
+- `#/explore` search across traders, trades and strategies (Instagram-style browse grid when the box is empty)
 - `#/discover` strategy search, style and market filters, sorting
 - `#/s/:id` strategy page (its own mini-site: cover, author stats, step tickets with checklists, trades using it, follow, fork)
 - `#/builder` step-by-step strategy builder with live preview, publish, edit, fork

@@ -180,7 +180,7 @@ function hydrateMedia(root = document) {
 function destroyMedia() { if (_vio) { _vio.disconnect(); _vio = null; } }
 
 /* ============ SHELL ============ */
-const NAV = [['floor', 'The Floor', I.floor], ['replays', 'Replays', I.replay], ['news', 'News', I.news], ['discover', 'Discover strategies', I.discover], ['builder', 'Strategy builder', I.builder], ['me', 'Profile', I.profile]];
+const NAV = [['floor', 'The Floor', I.floor], ['replays', 'Replays', I.replay], ['news', 'News', I.news], ['explore', 'Explore', I.discover], ['builder', 'Strategy builder', I.builder], ['me', 'Profile', I.profile]];
 function shell(active, inner) {
   const links = NAV.map(([k, l, ic]) => `<a href="#/${k}" ${active === k ? 'aria-current="page"' : ''}>${ic}<span>${l}</span></a>`).join('');
   const tabs = NAV.map(([k, l, ic]) => `<a href="#/${k}" aria-label="${l}" ${active === k ? 'aria-current="page"' : ''}>${ic}</a>`).join('');
@@ -371,6 +371,80 @@ function toggleNewsSound() {
   $$('.nreel iframe').forEach((f) => reelCmd(f, newsMuted ? 'mute' : 'unMute'));
   $$('.nsoundtxt').forEach((s) => (s.textContent = newsMuted ? 'Sound off' : 'Sound on'));
   $$('[data-act="news-mute"]').forEach((b) => b.setAttribute('aria-pressed', String(!newsMuted)));
+}
+
+/* ============ EXPLORE ============ */
+/* Search across traders, posts and strategies. With no query it behaves like a
+   browse page: a grid of recent posts plus traders and strategies to follow. */
+const ex = { q: '', tab: 'top' };
+let _exT = null, _exToken = 0;
+const EX_TABS = [['top', 'Top'], ['traders', 'Traders'], ['videos', 'Videos'], ['posts', 'Posts'], ['strategies', 'Strategies']];
+function traderCard(u) {
+  const me = ME && u.id === ME.id; const fol = state.following.has(u.id);
+  return `<div class="tcard">${badge(u, 56)}
+    <div class="tinfo"><a href="#/u/${esc(u.handle)}"><strong>${esc(u.handle)}</strong></a>
+      <small>${esc(u.name)}</small>
+      <span class="tstat">${compact(u.follower_count)} followers${u.markets && u.markets.length ? ' · ' + esc(u.markets.slice(0, 3).join(' ')) : ''}</span></div>
+    ${me ? '' : `<button class="btn btn-sm ${fol ? 'btn-line' : 'btn-floor'}" data-act="follow" data-uid="${u.id}">${fol ? 'Following' : 'Follow'}</button>`}</div>`;
+}
+const exRow = (title, body, more) => `<section class="exrow"><header><h2>${title}</h2>${more || ''}</header>${body}</section>`;
+async function exploreView() {
+  const q = ex.q.trim();
+  const tab = ex.tab;
+  const bar = `<div class="exsearch"><label class="sr" for="exq">Search</label>${I.discover}
+      <input id="exq" class="input" type="search" placeholder="Search traders, trades and strategies" value="${esc(ex.q)}" data-act="ex-q" autocomplete="off">
+      <button class="ib" id="exClear" data-act="ex-clear" aria-label="Clear search" ${q ? '' : 'hidden'}>${I.x}</button></div>
+    <div class="feed-tabs" role="group" aria-label="Search filter">${EX_TABS.map(([k, l]) => `<button class="chip" data-act="ex-tab" data-t="${k}" aria-pressed="${tab === k}">${l}</button>`).join('')}</div>`;
+  let body = '';
+  if (!q) {
+    // browse mode
+    const [posts, traders, strats] = await Promise.all([
+      DB.searchPosts('', { video: tab === 'videos', limit: 36 }),
+      tab === 'top' || tab === 'traders' ? DB.topTraders(tab === 'traders' ? 24 : 6) : [],
+      tab === 'top' || tab === 'strategies' ? DB.searchStrategies('', tab === 'strategies' ? 24 : 4) : [],
+    ]);
+    if (tab === 'traders') body = traders.length ? `<div class="tgrid">${traders.map(traderCard).join('')}</div>` : `<div class="empty">No traders yet.</div>`;
+    else if (tab === 'strategies') body = strats.length ? `<div class="sgrid">${strats.map(scardHTML).join('')}</div>` : `<div class="empty">No strategies published yet.</div>`;
+    else if (tab === 'videos' || tab === 'posts') body = posts.rows.length ? `<div class="thumbs exgrid">${posts.rows.map(thumbHTML).join('')}</div>` : `<div class="empty">Nothing posted yet.</div>`;
+    else {
+      body = (traders.length ? exRow('Traders to follow', `<div class="tgrid">${traders.map(traderCard).join('')}</div>`, `<button class="btn btn-line btn-sm" data-act="ex-tab" data-t="traders">See all</button>`) : '')
+        + (posts.rows.length ? exRow('Recent trades', `<div class="thumbs exgrid">${posts.rows.slice(0, 18).map(thumbHTML).join('')}</div>`, `<button class="btn btn-line btn-sm" data-act="ex-tab" data-t="posts">See all</button>`) : '')
+        + (strats.length ? exRow('Strategies', `<div class="sgrid">${strats.map(scardHTML).join('')}</div>`, `<a class="btn btn-line btn-sm" href="#/discover">All filters</a>`) : '');
+      if (!body) body = emptyBlock('Nothing to explore yet.', 'When traders sign up and post, their trades, profiles and strategies show up here.', `<button class="btn btn-floor" data-act="compose">${I.plus}Post the first trade</button>`);
+    }
+  } else {
+    const [traders, posts, strats] = await Promise.all([
+      tab === 'top' || tab === 'traders' ? DB.searchProfiles(q, tab === 'traders' ? 24 : 6) : [],
+      tab === 'top' || tab === 'posts' || tab === 'videos' ? DB.searchPosts(q, { video: tab === 'videos', limit: 36 }) : { rows: [] },
+      tab === 'top' || tab === 'strategies' ? DB.searchStrategies(q, tab === 'strategies' ? 24 : 6) : [],
+    ]);
+    const nothing = !traders.length && !posts.rows.length && !strats.length;
+    if (nothing) body = emptyBlock('No matches.', `Nothing found for "${esc(q)}". Try a handle, a market like MGC, or a strategy name.`, '');
+    else if (tab === 'traders') body = `<div class="tgrid">${traders.map(traderCard).join('')}</div>`;
+    else if (tab === 'strategies') body = `<div class="sgrid">${strats.map(scardHTML).join('')}</div>`;
+    else if (tab === 'videos' || tab === 'posts') body = posts.rows.length ? `<div class="thumbs exgrid">${posts.rows.map(thumbHTML).join('')}</div>` : `<div class="empty">No ${tab === 'videos' ? 'videos' : 'posts'} match.</div>`;
+    else body = (traders.length ? exRow('Traders', `<div class="tgrid">${traders.map(traderCard).join('')}</div>`) : '')
+        + (posts.rows.length ? exRow('Trades', `<div class="thumbs exgrid">${posts.rows.slice(0, 18).map(thumbHTML).join('')}</div>`) : '')
+        + (strats.length ? exRow('Strategies', `<div class="sgrid">${strats.map(scardHTML).join('')}</div>`) : '');
+  }
+  return shell('explore', `<div class="page">
+    <div class="page-h"><div><h1>Explore</h1><p>Search for traders, trades and strategies, or browse what the floor has posted.</p></div></div>
+    ${bar}
+    <div id="exBody">${body}</div></div>`);
+}
+/* typing re-runs the search without redrawing the whole page, so focus is kept */
+async function exSearch() {
+  const tok = ++_exToken;
+  const box = $('#exBody'); if (!box) return;
+  box.innerHTML = loadingBlock();
+  const html = await exploreView();
+  if (tok !== _exToken) return;
+  const tmp = document.createElement('div'); tmp.innerHTML = html;
+  const fresh = tmp.querySelector('#exBody');
+  if (fresh && $('#exBody')) $('#exBody').innerHTML = fresh.innerHTML;
+  $$('[data-act="ex-tab"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.t === ex.tab)));
+  const clear = $('#exClear'); if (clear) clear.hidden = !ex.q.trim();
+  hydrateMedia($('#exBody'));
 }
 
 /* ============ DISCOVER ============ */
@@ -670,6 +744,8 @@ document.addEventListener('click', async (e) => {
     case 'news-tab': news.tab = el.dataset.t; news.source = 'All'; render(); break;
     case 'news-src': news.source = el.dataset.v; render(); break;
     case 'news-mute': toggleNewsSound(); break;
+    case 'ex-tab': ex.tab = el.dataset.t; exSearch(); break;
+    case 'ex-clear': { ex.q = ''; const box = $('#exq'); if (box) { box.value = ''; box.focus(); } exSearch(); break; }
     case 'disc-style': disc.style = el.dataset.v; $$('[data-act="disc-style"]').forEach((b) => b.setAttribute('aria-pressed', b === el)); renderDiscGrid(); break;
     case 'follow-strat': { if (!need()) break; const on = !state.followedStrategies.has(id); const m = await DB.setStrategyFollow(id, on); if (m) { toast(m); break; } render(true); toast(on ? 'Following strategy' : 'Unfollowed strategy'); break; }
     case 'fork': state.draft = null; location.hash = '#/builder?fork=' + id; break;
@@ -711,6 +787,7 @@ document.addEventListener('submit', async (e) => {
 });
 document.addEventListener('input', (e) => {
   const t = e.target; const d = state.draft;
+  if (t.dataset.act === 'ex-q') { ex.q = t.value; clearTimeout(_exT); _exT = setTimeout(exSearch, 280); return; }
   if (t.dataset.act === 'disc-q') { disc.q = t.value; renderDiscGrid(); return; }
   if (!d) return;
   if (t.dataset.d) { d[t.dataset.d] = t.value; renderPreview(); }
@@ -733,7 +810,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.
 /* ============ ROUTER ============ */
 let lastRoute = null, _tok = 0;
 function parseHash() { const h = location.hash.replace(/^#/, '') || '/'; const [path, qs] = h.split('?'); return { parts: path.split('/').filter(Boolean), params: new URLSearchParams(qs || '') }; }
-const ACTIVE = { floor: 'floor', replays: 'replays', news: 'news', discover: 'discover', s: 'discover', u: 'discover', me: 'me', builder: 'builder' };
+const ACTIVE = { floor: 'floor', replays: 'replays', news: 'news', explore: 'explore', discover: 'explore', s: 'discover', u: 'discover', me: 'me', builder: 'builder' };
 async function render(keepScroll = false) {
   const tok = ++_tok; const y = scrollY; const { parts, params } = parseHash(); const r = parts[0] || '';
   destroyReplays(); destroyMedia(); if (_moreIO) _moreIO.disconnect(); if (_newsIO) _newsIO.disconnect(); destroyReels(); Landing.destroy(); POSTS.clear();
@@ -744,6 +821,7 @@ async function render(keepScroll = false) {
   try {
     if (r === 'floor') html = await feedView();
     else if (r === 'news') html = await newsView();
+    else if (r === 'explore') html = await exploreView();
     else if (r === 'replays') html = await replaysView();
     else if (r === 'discover') html = await discoverView();
     else if (r === 's') html = await strategyView(parts[1]);
@@ -754,7 +832,7 @@ async function render(keepScroll = false) {
   } catch (err) { console.error(err); html = shell(ACTIVE[r] || 'floor', `<div class="page">${errorBlock('Could not reach the server. Check your connection and try again.')}</div>`); }
   if (tok !== _tok) return; // a newer navigation started while this one was loading
   app.innerHTML = html;
-  if (!['s', 'u', 'me'].includes(r) || !document.title.includes('|')) document.title = `${({ floor: 'The Floor', replays: 'Replays', news: 'News', discover: 'Discover strategies', s: 'Strategy', u: 'Profile', me: 'Profile', builder: 'Strategy builder' })[r] || 'Not found'} | The Trading Floor`;
+  if (!['s', 'u', 'me'].includes(r) || !document.title.includes('|')) document.title = `${({ floor: 'The Floor', replays: 'Replays', news: 'News', explore: 'Explore', discover: 'Discover strategies', s: 'Strategy', u: 'Profile', me: 'Profile', builder: 'Strategy builder' })[r] || 'Not found'} | The Trading Floor`;
   if (r === 'discover') renderDiscGrid();
   if (r === 'builder') renderBuilder();
   if (r === 'floor') watchFeedMore();
