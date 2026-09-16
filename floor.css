@@ -172,3 +172,23 @@ a.ncard:hover .nlink { color: var(--ink); }
   .exsearch .input { height: 44px; }
   .page-h + .exsearch { margin-top: 4px; }
 }
+
+/* ============ PROFILE PICTURES ============ */
+.badge.has-pic { background: var(--board-3); box-shadow: inset 0 0 0 1px var(--line); overflow: hidden; }
+.badge.has-pic::after { display: none; }
+.badge.has-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.prof .badge.has-pic { border-radius: 4px; }
+
+/* picture control in the profile sheet */
+.su-pic { position: relative; width: 112px; height: 112px; flex: none; }
+.su-pic .su-badge { width: 100%; height: 100%; }
+.su-badge.has-pic { overflow: hidden; background: var(--board-3); box-shadow: inset 0 0 0 1px var(--line); }
+.su-badge.has-pic::after { display: none; }
+.su-badge.has-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.su-picbtn { position: absolute; right: -6px; bottom: -6px; width: 38px; height: 38px; border-radius: 50%;
+  background: var(--board-2); box-shadow: inset 0 0 0 1px var(--line); display: grid; place-items: center; cursor: pointer; }
+.su-picbtn:hover { background: var(--board-3); box-shadow: inset 0 0 0 1px var(--floor); }
+.su-picbtn svg { width: 18px; height: 18px; stroke: var(--ink); fill: none; stroke-width: 1.8; }
+.su-rm { justify-self: start; }
+.su-fields .input[disabled] { opacity: .6; cursor: not-allowed; }
+@media (max-width: 520px) { .su-pic { width: 88px; height: 88px; } }

@@ -6,6 +6,7 @@ Static front end (HTML/CSS/JS, GSAP from cdnjs) backed by Supabase for accounts,
 - Supabase project `The-Trading-Floor` (`grcldjuolszcidfitxgo`). URL and publishable key are in `data.js` — the publishable key is meant to be public, access is controlled by row level security.
 - Tables: `profiles`, `posts`, `comments`, `likes`, `saves`, `follows`, `strategies`, `strategy_follows`. Read views: `posts_feed`, `comments_list`, `strategies_list`, `profiles_stats`.
 - Every table has RLS: anyone can read public content, you can only write rows that belong to you, and `saves` are private to you.
+- Profile pictures are optional: squared and shrunk to 512px WebP in the browser, stored at `<user-id>/avatar/`, and shown instead of the three-letter badge. `Edit profile` on your own profile changes picture, name, badge, colour, markets and bio; handles are fixed.
 - Uploads go to the public `media` bucket under `<user-id>/posts/` or `<user-id>/steps/`. 50 MB cap, images plus MP4/MOV/WebM.
 - News: `news_items` + `news_sources` tables, filled by the `fetch-news` Edge Function on a 15-minute pg_cron schedule. Sources are public RSS feeds (YouTube per-channel feeds plus publisher feeds); no API keys. Only headline, link, thumbnail and a short summary are stored, and everything links back to the publisher.
 - Profanity filter on profile handles, display names and badges only (DB trigger + `banned_terms`/`allowed_terms`). Captions, comments and strategy text are deliberately unfiltered.

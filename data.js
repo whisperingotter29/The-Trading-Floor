@@ -86,6 +86,45 @@ const DB = {
     return data;
   },
 
+  /* ---------- profile picture ---------- */
+  /* Shrink and square-crop in the browser first: a phone photo is often several
+     MB, and all we ever show is a small circle. */
+  async avatarBlob(file, size = 512) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+      const side = Math.min(img.naturalWidth, img.naturalHeight);
+      const c = document.createElement('canvas'); c.width = c.height = Math.min(size, side);
+      const x = c.getContext('2d');
+      x.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, c.width, c.height);
+      return await new Promise((res) => c.toBlob(res, 'image/webp', 0.85));
+    } finally { URL.revokeObjectURL(url); }
+  },
+  async setAvatar(file) {
+    const blob = await DB.avatarBlob(file);
+    if (!blob) return { error: 'That image could not be read. Try a PNG or JPG.' };
+    const path = `${uid()}/avatar/${Date.now()}.webp`;
+    const { error } = await sb.storage.from(MEDIA_BUCKET).upload(path, blob, { contentType: 'image/webp', upsert: false, cacheControl: '31536000' });
+    if (error) return { error: dbError(error, 'The picture could not be uploaded.') };
+    const old = ME && ME.avatar_path;
+    const msg = await DB.updateProfile({ avatar_path: path });
+    if (msg) return { error: msg };
+    if (old && old !== path) await sb.storage.from(MEDIA_BUCKET).remove([old]);
+    return { path };
+  },
+  async removeAvatar() {
+    const old = ME && ME.avatar_path; if (!old) return null;
+    const msg = await DB.updateProfile({ avatar_path: null });
+    if (msg) return msg;
+    await sb.storage.from(MEDIA_BUCKET).remove([old]);
+    return null;
+  },
+  async updateProfile(patch) {
+    const { error } = await sb.from('profiles').update(patch).eq('id', uid());
+    if (error) return dbError(error, 'Could not save your profile.');
+    await DB.loadMe(); return null;
+  },
+
   /* ---------- media ---------- */
   mediaUrl(path) {
     if (!path) return '';
@@ -102,7 +141,7 @@ const DB = {
 
   /* ---------- posts ---------- */
   norm(r) {
-    return { id: r.id, user_id: r.user_id, handle: r.handle, badge: r.badge, tone: r.tone, type: r.media_type, path: r.media_path, url: DB.mediaUrl(r.media_path),
+    return { id: r.id, user_id: r.user_id, handle: r.handle, badge: r.badge, tone: r.tone, avatar_path: r.avatar_path, type: r.media_type, path: r.media_path, url: DB.mediaUrl(r.media_path),
       sym: r.sym, tf: r.tf, session: r.session, tk: { side: r.side, pnl: Number(r.pnl), rr: r.rr == null ? null : Number(r.rr) },
       caption: r.caption, strategy_id: r.strategy_id, likes: r.like_count || 0, commentCount: r.comment_count || 0, comments: [], t: Date.parse(r.created_at), created_at: r.created_at };
   },
@@ -220,7 +259,7 @@ const DB = {
 
   /* ---------- strategies ---------- */
   normS(r) {
-    return { id: r.id, user_id: r.user_id, handle: r.handle, badge: r.badge, tone: r.tone, slug: r.slug, title: r.title, tagline: r.tagline, market: r.market, session: r.session,
+    return { id: r.id, user_id: r.user_id, handle: r.handle, badge: r.badge, tone: r.tone, avatar_path: r.avatar_path, slug: r.slug, title: r.title, tagline: r.tagline, market: r.market, session: r.session,
       timeframe: r.timeframe, style: r.style, theme: r.theme, stats: r.stats || {}, steps: r.steps || [], followers: r.follower_count || 0, forks: r.fork_count || 0, fork_of: r.fork_of, created: Date.parse(r.created_at) };
   },
   async strategies({ user_id, ids, sort = 'followers', limit = 100 } = {}) {

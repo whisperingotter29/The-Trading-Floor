@@ -31,8 +31,13 @@ const I = {
   play: '<svg viewBox="0 0 24 24" aria-hidden="true" style="width:12px;height:12px;fill:currentColor;stroke:none"><path d="M6 4l14 8-14 8z"/></svg>',
   pause: '<svg viewBox="0 0 24 24" aria-hidden="true" style="width:12px;height:12px;fill:currentColor;stroke:none"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>',
 };
-/* badge() takes anything with { badge, tone }: a profile, a post or a strategy row */
-const badge = (o, s = 40) => { const u = o || { badge: '???', tone: 'board' }; return `<span class="badge t-${esc(u.tone || 'board')}" style="--s:${s}px" aria-hidden="true">${esc(u.badge || '???')}</span>`; };
+/* badge() takes anything with { badge, tone, avatar_path }: a profile, post or strategy row.
+   A picture replaces the three letters; without one the letter badge is used. */
+const badge = (o, s = 40) => {
+  const u = o || { badge: '???', tone: 'board' };
+  if (u.avatar_path) return `<span class="badge has-pic" style="--s:${s}px" aria-hidden="true"><img src="${esc(DB.mediaUrl(u.avatar_path))}" alt="" loading="lazy"></span>`;
+  return `<span class="badge t-${esc(u.tone || 'board')}" style="--s:${s}px" aria-hidden="true">${esc(u.badge || '???')}</span>`;
+};
 
 /* ============ ACCOUNTS ============ */
 /* Two steps: sign in (Google or an emailed link/code, handled by Supabase Auth),
@@ -95,27 +100,50 @@ async function afterSignIn() {
   toast('Signed in as @' + ME.handle); render(true); resume();
 }
 
-function openProfileSetup() {
+function openProfileSetup({ edit = false } = {}) {
   const hint = sessionStorage.getItem(BADGE_KEY) || '';
-  const su = { tone: 'floor', markets: new Set() };
+  const cur = edit && ME ? ME : null;
+  const su = { tone: cur ? cur.tone : 'floor', markets: new Set(cur ? cur.markets || [] : []), avatar: cur ? cur.avatar_path : null, file: null, preview: null };
   openModal(`<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="suH" style="width:min(560px,100%)"><header><h2 id="suH">Set up your profile</h2><button class="ib" data-act="close" aria-label="Close">${I.x}</button></header>
     <div class="su">
-      <p class="su-lead">Pick a name, a handle and a three-letter badge. The badge goes on every trade you post. Handles and badges are one per trader.</p>
-      <div class="su-row"><div class="su-badge" id="suBadge">${esc(hint || '???')}</div>
+      <p class="su-lead">${edit ? 'Change how you appear on the floor.' : 'Pick a name, a handle and a three-letter badge. It goes on every trade you post, unless you add a picture.'}</p>
+      <div class="su-row"><div class="su-pic" id="suPic">
+          <div class="su-badge" id="suBadge">${esc((cur ? cur.badge : hint) || '???')}</div>
+          <label class="su-picbtn" title="Choose a picture">${I.upload}<span class="sr">Upload a profile picture</span>
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" id="suFile" class="sr"></label>
+        </div>
         <div class="su-fields">
-          <label class="field"><span>Display name</span><input class="input" id="suName" maxlength="40" autocomplete="name" placeholder="Arjun"></label>
-          <label class="field"><span>Handle</span><input class="input" id="suHandle" maxlength="20" autocomplete="username" placeholder="arjun.trades" spellcheck="false"></label>
+          <label class="field"><span>Display name</span><input class="input" id="suName" maxlength="40" autocomplete="name" placeholder="Arjun" value="${esc(cur ? cur.name : '')}"></label>
+          <label class="field"><span>Handle</span><input class="input" id="suHandle" maxlength="20" autocomplete="username" placeholder="arjun.trades" spellcheck="false" value="${esc(cur ? cur.handle : '')}" ${edit ? 'disabled title="Handles cannot be changed"' : ''}></label>
+          <button type="button" class="btn btn-line btn-sm su-rm" id="suRemovePic" ${cur && cur.avatar_path ? '' : 'hidden'}>Remove picture</button>
         </div></div>
-      <div class="g2"><label class="field"><span>Badge (3 letters)</span><input class="input su-badge-in" id="suBadgeIn" maxlength="3" value="${esc(hint)}" placeholder="ARJ" spellcheck="false" autocomplete="off"></label>
-        <div class="field"><span>Badge colour</span><div class="themes" role="group" aria-label="Badge colour">${[['floor', '#18A583', 'Phthalo green'], ['paper', '#EFE9D8', 'Ticket paper'], ['board', '#12291F', 'Dark board']].map(([k, c, l]) => `<button type="button" class="su-tone" data-v="${k}" style="background:${c}" aria-label="${l}" aria-pressed="${k === 'floor'}"></button>`).join('')}</div></div></div>
-      <div class="field"><span>Markets you trade (optional)</span><div class="su-markets">${Object.keys(SYMBOLS).map((m) => `<button type="button" class="chip su-mk" data-m="${m}" aria-pressed="false">${m}</button>`).join('')}</div></div>
-      <label class="field"><span>Bio (optional)</span><textarea class="input" id="suBio" maxlength="160" placeholder="What you trade and when"></textarea></label>
+      <div class="g2"><label class="field"><span>Badge (3 letters)</span><input class="input su-badge-in" id="suBadgeIn" maxlength="3" value="${esc(cur ? cur.badge : hint)}" placeholder="ARJ" spellcheck="false" autocomplete="off"></label>
+        <div class="field"><span>Badge colour</span><div class="themes" role="group" aria-label="Badge colour">${[['floor', '#18A583', 'Phthalo green'], ['paper', '#EFE9D8', 'Ticket paper'], ['board', '#12291F', 'Dark board']].map(([k, c, l]) => `<button type="button" class="su-tone" data-v="${k}" style="background:${c}" aria-label="${l}" aria-pressed="${k === su.tone}"></button>`).join('')}</div></div></div>
+      <div class="field"><span>Markets you trade (optional)</span><div class="su-markets">${Object.keys(SYMBOLS).map((m) => `<button type="button" class="chip su-mk" data-m="${m}" aria-pressed="${su.markets.has(m)}">${m}</button>`).join('')}</div></div>
+      <label class="field"><span>Bio (optional)</span><textarea class="input" id="suBio" maxlength="160" placeholder="What you trade and when">${esc(cur ? cur.bio : '')}</textarea></label>
       <div class="err" id="suErr" role="alert"></div>
-      <button class="btn btn-floor" id="suGo">Save profile</button>
-      <button class="btn btn-line" data-act="signout">Sign out</button>
+      <button class="btn btn-floor" id="suGo">${edit ? 'Save changes' : 'Save profile'}</button>
+      ${edit ? `<button class="btn btn-line" data-act="close">Cancel</button>` : `<button class="btn btn-line" data-act="signout">Sign out</button>`}
     </div></div>`);
   const m = $('#modal'); const badgeEl = $('#suBadge');
-  const syncBadge = () => { badgeEl.textContent = $('#suBadgeIn').value || '???'; badgeEl.className = 'su-badge t-' + su.tone; };
+  const syncBadge = () => {
+    const pic = su.preview || (su.avatar ? DB.mediaUrl(su.avatar) : null);
+    if (pic) { badgeEl.innerHTML = `<img src="${esc(pic)}" alt="">`; badgeEl.className = 'su-badge has-pic'; }
+    else { badgeEl.textContent = $('#suBadgeIn').value || '???'; badgeEl.className = 'su-badge t-' + su.tone; }
+    const rm = $('#suRemovePic'); if (rm) rm.hidden = !(su.preview || su.avatar);
+  };
+  $('#suFile').addEventListener('change', (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const err = $('#suErr');
+    if (!/^image\/(png|jpeg|webp|gif)$/.test(f.type)) { err.textContent = 'Pictures need to be PNG, JPG, WebP or GIF.'; return; }
+    if (f.size > MAX_UPLOAD) { err.textContent = 'That image is over 50 MB.'; return; }
+    err.textContent = ''; if (su.preview) URL.revokeObjectURL(su.preview);
+    su.file = f; su.preview = URL.createObjectURL(f); syncBadge();
+  });
+  $('#suRemovePic').addEventListener('click', () => {
+    if (su.preview) URL.revokeObjectURL(su.preview);
+    su.file = null; su.preview = null; su.avatar = null; su.removed = true; $('#suFile').value = ''; syncBadge();
+  });
   $('#suBadgeIn').addEventListener('input', (e) => { e.target.dataset.touched = '1'; e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); syncBadge(); });
   $('#suHandle').addEventListener('input', (e) => { e.target.value = e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ''); });
   $('#suName').addEventListener('input', (e) => { const b = $('#suBadgeIn'); if (!b.dataset.touched && !hint) { b.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); syncBadge(); } });
@@ -124,13 +152,19 @@ function openProfileSetup() {
   syncBadge();
   $('#suGo').addEventListener('click', async () => {
     const name = $('#suName').value.trim(), handle = $('#suHandle').value.trim(), bdg = $('#suBadgeIn').value.trim(), err = $('#suErr'), go = $('#suGo');
+    const label = edit ? 'Save changes' : 'Save profile';
     if (!name) return (err.textContent = 'Add a display name.');
-    if (!/^[a-z0-9._]{3,20}$/.test(handle)) return (err.textContent = 'Handles are 3 to 20 characters: lowercase letters, numbers, dots and underscores.');
+    if (!edit && !/^[a-z0-9._]{3,20}$/.test(handle)) return (err.textContent = 'Handles are 3 to 20 characters: lowercase letters, numbers, dots and underscores.');
     if (!/^[A-Z]{3}$/.test(bdg)) return (err.textContent = 'Badges are exactly three letters.');
     go.disabled = true; go.textContent = 'Saving...'; err.textContent = '';
-    const msg = await DB.createProfile({ handle, badge: bdg, name, bio: $('#suBio').value.trim(), markets: [...su.markets], tone: su.tone });
-    if (msg) { err.textContent = msg; go.disabled = false; go.textContent = 'Save profile'; return; }
-    sessionStorage.removeItem(BADGE_KEY); closeModal(); toast('Welcome to the floor, @' + handle); render(true); resume();
+    const fields = { badge: bdg, name, bio: $('#suBio').value.trim(), markets: [...su.markets], tone: su.tone };
+    const msg = edit ? await DB.updateProfile(fields) : await DB.createProfile({ handle, ...fields });
+    if (msg) { err.textContent = msg; go.disabled = false; go.textContent = label; return; }
+    if (su.file) { go.textContent = 'Uploading picture...'; const up = await DB.setAvatar(su.file); if (up.error) { err.textContent = up.error; go.disabled = false; go.textContent = label; return; } }
+    else if (su.removed && edit) await DB.removeAvatar();
+    if (su.preview) URL.revokeObjectURL(su.preview);
+    sessionStorage.removeItem(BADGE_KEY); closeModal();
+    toast(edit ? 'Profile saved' : 'Welcome to the floor, @' + handle); render(true); if (!edit) resume();
   });
   setTimeout(() => $('#suName')?.focus(), 30);
 }
@@ -538,7 +572,7 @@ async function profileView(h, isMeRoute = false) {
   return shell(me ? 'me' : 'discover', `<div class="page"><header class="prof">${badge(u, 150)}<div>
       <h1>${esc(u.name)}</h1><div class="h">@${esc(u.handle)}, badge ${esc(u.badge)}</div>${u.bio ? `<p>${esc(u.bio)}</p>` : ''}
       <div class="stats"><span><b>${posts.length}</b>posts</span>${posts.length ? `<span><b>${wins}/${posts.length}</b>winners</span><span><b>${money(Math.round(net * 100) / 100)}</b>net P/L</span>` : ''}<span><b>${compact(u.follower_count)}</b>followers</span><span><b>${compact(u.following_count)}</b>following</span><span><b>${strats.length}</b>strategies</span></div>
-      <div class="row">${me ? `<button class="btn btn-floor" data-act="compose">${I.plus}Post a trade</button><a class="btn btn-line" href="#/builder">New strategy</a><button class="btn btn-line" data-act="signout">Sign out</button>` : `<button class="btn ${fol ? 'btn-line' : 'btn-floor'}" data-act="follow" data-uid="${u.id}">${fol ? 'Following' : 'Follow'}</button>`}
+      <div class="row">${me ? `<button class="btn btn-floor" data-act="compose">${I.plus}Post a trade</button><button class="btn btn-line" data-act="edit-profile">Edit profile</button><a class="btn btn-line" href="#/builder">New strategy</a><button class="btn btn-line" data-act="signout">Sign out</button>` : `<button class="btn ${fol ? 'btn-line' : 'btn-floor'}" data-act="follow" data-uid="${u.id}">${fol ? 'Following' : 'Follow'}</button>`}
       ${(u.markets || []).map((m) => `<span class="chip" style="display:inline-grid;place-items:center">${esc(m)}</span>`).join('')}</div>
     </div></header>
     <div class="tabs" role="tablist">${[['posts', 'Posts'], ['replays', 'Replays'], ['strategies', 'Strategies']].map(([k, l]) => `<button role="tab" aria-selected="${profTab === k}" data-act="prof-tab" data-t="${k}">${l}</button>`).join('')}</div>
@@ -719,6 +753,7 @@ document.addEventListener('click', async (e) => {
   switch (a) {
     case 'signin': openAuth(); break;
     case 'setup': openProfileSetup(); break;
+    case 'edit-profile': openProfileSetup({ edit: true }); break;
     case 'signout': closeModal(); await DB.signOut(); location.hash = '#/floor'; render(); toast('Signed out'); break;
     case 'reload': render(true); break;
     case 'compose': openComposer(); break;
