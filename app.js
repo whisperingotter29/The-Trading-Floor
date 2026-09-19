@@ -287,7 +287,7 @@ function watchFeedMore() {
     list.insertAdjacentHTML('beforeend', rows.map(postHTML).join(''));
     feedCursor = rows.length ? rows[rows.length - 1].created_at : feedCursor; feedDone = rows.length < 20;
     if (!feedDone) list.insertAdjacentHTML('beforeend', `<div class="feed-more" id="feedMore">${loadingBlock()}</div>`);
-    hydrateMedia(list); watchFeedMore();
+    hydrateMedia(list); watchClips(); watchFeedMore();
   }, { rootMargin: '600px' });
   _moreIO.observe(el);
 }
@@ -297,11 +297,12 @@ function watchFeedMore() {
    channel and link back to it: they are not posts by anyone on this site,
    and they carry no trade result. The player loads only once tapped. */
 function clipBadge() { return `<span class="yt-tag">${I.ext}YouTube</span>`; }
+let clipsMuted = true;
 function clipReelHTML(c) {
   return `<section class="reel clip-reel" data-vid="${esc(c.video_id)}" data-title="${esc(c.title)}">
     <div class="phone"><div class="phone-screen clip-screen">
       <img class="clip-poster" src="${esc(c.image_url || '')}" alt="" loading="lazy">
-      <button class="clip-play" data-act="play-clip" aria-label="Play: ${esc(c.title)}"><svg viewBox="0 0 24 24"><path d="M7 4l14 8-14 8z"/></svg></button>
+      <span class="clip-mute" data-act="clip-sound">${clipsMuted ? 'Tap for sound' : 'Sound on'}</span>
       <div class="phone-ov"><div class="who"><span class="badge t-board" style="--s:28px" aria-hidden="true">YT</span>
           <a href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">${esc(c.source)}</a>${clipBadge()}</div>
         <p>${esc(c.title)}</p></div></div></div>
@@ -316,26 +317,64 @@ function clipPostHTML(c) {
         <small>On YouTube, ${ago(c.t)} ago</small></div>${clipBadge()}</div>
     <div class="media clip-screen ${c.is_short ? 'clip-tall' : ''}">
       <img class="clip-poster" src="${esc(c.image_url || '')}" alt="" loading="lazy">
-      <button class="clip-play" data-act="play-clip" aria-label="Play: ${esc(c.title)}"><svg viewBox="0 0 24 24"><path d="M7 4l14 8-14 8z"/></svg></button></div>
+      <span class="clip-mute" data-act="clip-sound">${clipsMuted ? 'Tap for sound' : 'Sound on'}</span></div>
     <p class="caption clip-cap">${esc(c.title)}</p>
     <a class="clip-link" href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">Watch on ${esc(c.source)}'s channel${I.ext}</a>
   </article>`;
 }
-/* swap the poster for the real player, one at a time */
-function playClip(btn) {
-  const wrap = btn.closest('.clip-screen'); if (!wrap) return;
-  const host = btn.closest('[data-vid], [data-clip]');
+/* Clips start themselves as they scroll into view and stop when they leave, so
+   there is no play button. Browsers only allow that muted, hence the sound tap. */
+function mountClip(wrap) {
+  if (wrap.querySelector('iframe')) return;
+  const host = wrap.closest('[data-vid], [data-clip]');
   const vid = host?.dataset.vid || host?.dataset.clip; if (!vid) return;
-  $$('.clip-screen iframe').forEach((f) => { const w = f.closest('.clip-screen'); f.remove(); w.classList.remove('on'); });
-  wrap.classList.add('on');
   const f = document.createElement('iframe');
-  f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(vid)}?autoplay=1&rel=0&playsinline=1`;
+  f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(vid)}?autoplay=1&mute=${clipsMuted ? 1 : 0}&rel=0&playsinline=1&enablejsapi=1&loop=1&playlist=${encodeURIComponent(vid)}&origin=${encodeURIComponent(location.origin)}`;
   f.title = host.dataset.title || 'Clip';
-  f.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share';
+  f.allow = 'autoplay; encrypted-media; picture-in-picture; clipboard-write; web-share';
   f.referrerPolicy = 'strict-origin-when-cross-origin'; f.allowFullscreen = true; f.frameBorder = '0';
-  wrap.appendChild(f);
+  wrap.appendChild(f); wrap.classList.add('on');
 }
-function stopClips() { $$('.clip-screen iframe').forEach((f) => { const w = f.closest('.clip-screen'); f.remove(); w && w.classList.remove('on'); }); }
+function unmountClip(wrap) { const f = wrap.querySelector('iframe'); if (f) f.remove(); wrap.classList.remove('on'); }
+let _clipIO = null, _clipScroll = null, _clipTick = false;
+/* How much of the clip is actually on screen. The browser's own ratio is
+   measured against the scrolling container, which under-reports inside the
+   reels feed, so this measures against the window instead. */
+function seenRatio(el) {
+  const r = el.getBoundingClientRect();
+  if (!r.height) return 0;
+  return Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)) / r.height;
+}
+/* Exactly one clip plays: whichever is most in view. */
+function syncClips() {
+  const wraps = $$('.clip-screen'); if (!wraps.length) return;
+  let best = null, bestR = 0;
+  for (const w of wraps) { const v = seenRatio(w); if (v > bestR) { bestR = v; best = w; } }
+  for (const w of wraps) if (w !== best) unmountClip(w);
+  if (best && bestR > 0.5 && !reduced) mountClip(best);
+}
+function watchClips(root = document) {
+  stopClips();
+  const wraps = $$('.clip-screen', root); if (!wraps.length) return;
+  _clipIO = new IntersectionObserver(() => syncClips(), { threshold: [0, 0.25, 0.5, 0.75, 1] });
+  wraps.forEach((w) => _clipIO.observe(w));
+  _clipScroll = () => { if (_clipTick) return; _clipTick = true; requestAnimationFrame(() => { _clipTick = false; syncClips(); }); };
+  addEventListener('scroll', _clipScroll, { passive: true });
+  $$('.reels, .nreels').forEach((c) => c.addEventListener('scroll', _clipScroll, { passive: true }));
+  syncClips();
+}
+function stopClips() {
+  if (_clipIO) { _clipIO.disconnect(); _clipIO = null; }
+  if (_clipScroll) { removeEventListener('scroll', _clipScroll); $$('.reels, .nreels').forEach((c) => c.removeEventListener('scroll', _clipScroll)); _clipScroll = null; }
+  $$('.clip-screen').forEach(unmountClip);
+}
+function toggleClipSound() {
+  clipsMuted = !clipsMuted;
+  $$('.clip-screen iframe').forEach((f) => {
+    try { f.contentWindow.postMessage(JSON.stringify({ event: 'command', func: clipsMuted ? 'mute' : 'unMute', args: [] }), '*'); } catch (e) {}
+  });
+  $$('.clip-mute').forEach((s) => (s.textContent = clipsMuted ? 'Tap for sound' : 'Sound on'));
+}
 
 /* ============ REPLAYS ============ */
 async function replaysView() {
@@ -844,7 +883,7 @@ document.addEventListener('click', async (e) => {
     case 'news-tab': news.tab = el.dataset.t; news.source = 'All'; render(); break;
     case 'news-src': news.source = el.dataset.v; render(); break;
     case 'news-mute': toggleNewsSound(); break;
-    case 'play-clip': playClip(el); break;
+    case 'clip-sound': toggleClipSound(); break;
     case 'ex-tab': ex.tab = el.dataset.t; exSearch(); break;
     case 'ex-clear': { ex.q = ''; const box = $('#exq'); if (box) { box.value = ''; box.focus(); } exSearch(); break; }
     case 'disc-style': disc.style = el.dataset.v; $$('[data-act="disc-style"]').forEach((b) => b.setAttribute('aria-pressed', b === el)); renderDiscGrid(); break;
@@ -937,6 +976,7 @@ async function render(keepScroll = false) {
   if (r === 'discover') renderDiscGrid();
   if (r === 'builder') renderBuilder();
   if (r === 'floor') watchFeedMore();
+  if (r === 'floor' || r === 'replays') watchClips();
   if (r === 'news') { watchNewsMore(); if (news.tab === 'video') watchReels(); }
   hydrateMedia(app);
   window.scrollTo(0, keepScroll ? y : 0);
