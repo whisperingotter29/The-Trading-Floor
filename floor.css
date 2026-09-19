@@ -233,6 +233,8 @@ a.ncard:hover .nlink { color: var(--ink); }
 .clip-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px 0; }
 .clip-bar .btn { gap: 6px; }
 .clip-bar .btn svg { width: 15px; height: 15px; }
+.clip-bar .btn[data-act="clip-play"] svg { fill: currentColor; stroke: none; }
+.reel-acts .act[data-act="clip-play"] svg { fill: currentColor; stroke: none; }
 .clip-cap { color: var(--ink); }
 .clip-post .media { background: #000; }
 .clip-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }

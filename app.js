@@ -297,7 +297,16 @@ function watchFeedMore() {
    channel and link back to it: they are not posts by anyone on this site,
    and they carry no trade result. The player loads only once tapped. */
 function clipBadge() { return `<span class="yt-tag">YouTube</span>`; }
-let clipsMuted = true;
+/* Sound is remembered: browsers only allow autoplay while muted, so the first
+   clip of a first visit is silent. After one tap it stays on from then on. */
+let clipsMuted = localStorage.getItem('tf_clip_sound') !== 'on';
+let clipsPaused = false;
+let userGestured = false;
+addEventListener('pointerdown', () => { userGestured = true; }, { once: true, passive: true });
+addEventListener('keydown', () => { userGestured = true; }, { once: true });
+function clipCmd(frame, func) {
+  try { frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args: [] }), '*'); } catch (e) {}
+}
 function clipReelHTML(c) {
   return `<section class="reel clip-reel" data-vid="${esc(c.video_id)}" data-title="${esc(c.title)}">
     <div class="clip-col">
@@ -307,6 +316,7 @@ function clipReelHTML(c) {
         <p>${esc(c.title)}</p></div>
     </div>
     <div class="reel-acts">
+      <button class="act" data-act="clip-play" aria-label="Play or pause">${clipsPaused ? I.play : I.pause}<span class="clip-pp">${clipsPaused ? 'Play' : 'Pause'}</span></button>
       <button class="act" data-act="clip-sound" aria-label="Sound on or off">${I.sound}<span class="clip-mute">${clipsMuted ? 'Sound off' : 'Sound on'}</span></button>
       <a class="act" href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer" aria-label="Watch on YouTube">${I.ext}<span>YouTube</span></a>
     </div></section>`;
@@ -318,7 +328,8 @@ function clipPostHTML(c) {
         <small>${ago(c.t)} ago${clipBadge()}</small></div></div>
     <div class="media clip-screen clip-tall">
       <img class="clip-poster" src="${esc(c.image_url || '')}" alt="" loading="lazy"></div>
-    <div class="clip-bar"><button class="btn btn-line btn-sm" data-act="clip-sound">${I.sound}<span class="clip-mute">${clipsMuted ? 'Sound off' : 'Sound on'}</span></button>
+    <div class="clip-bar"><button class="btn btn-line btn-sm" data-act="clip-play">${clipsPaused ? I.play : I.pause}<span class="clip-pp">${clipsPaused ? 'Play' : 'Pause'}</span></button>
+      <button class="btn btn-line btn-sm" data-act="clip-sound">${I.sound}<span class="clip-mute">${clipsMuted ? 'Sound off' : 'Sound on'}</span></button>
       <a class="clip-link" href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">Watch on ${esc(c.source)}'s channel${I.ext}</a></div>
     <p class="caption clip-cap">${esc(c.title)}</p>
   </article>`;
@@ -333,7 +344,7 @@ function mountClip(wrap) {
   /* controls, title bar, keyboard and end-screen suggestions are all turned off
      through YouTube's own player parameters. The small YouTube mark stays: it is
      part of the player and covering it is not allowed. */
-  const params = new URLSearchParams({ autoplay: '1', mute: clipsMuted ? '1' : '0', controls: '0', disablekb: '1',
+  const params = new URLSearchParams({ autoplay: '1', mute: '1', controls: '0', disablekb: '1',
     rel: '0', iv_load_policy: '3', playsinline: '1', enablejsapi: '1', loop: '1', playlist: vid,
     modestbranding: '1', origin: location.origin });
   f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(vid)}?${params}`;
@@ -341,6 +352,13 @@ function mountClip(wrap) {
   f.allow = 'autoplay; encrypted-media; picture-in-picture; clipboard-write; web-share';
   f.referrerPolicy = 'strict-origin-when-cross-origin'; f.allowFullscreen = true; f.frameBorder = '0';
   wrap.appendChild(f); wrap.classList.add('on');
+  /* start muted because that is the only way autoplay is permitted, then turn
+     the sound straight back on if this person already asked for it */
+  if (!clipsMuted && userGestured) {
+    const on = () => { clipCmd(f, 'unMute'); clipCmd(f, 'playVideo'); };
+    f.addEventListener('load', () => { on(); setTimeout(on, 400); setTimeout(on, 1200); });
+  }
+  if (clipsPaused) f.addEventListener('load', () => setTimeout(() => clipCmd(f, 'pauseVideo'), 300));
 }
 function unmountClip(wrap) { const f = wrap.querySelector('iframe'); if (f) f.remove(); wrap.classList.remove('on'); }
 let _clipIO = null, _clipScroll = null, _clipTick = false;
@@ -377,10 +395,15 @@ function stopClips() {
 }
 function toggleClipSound() {
   clipsMuted = !clipsMuted;
-  $$('.clip-screen iframe').forEach((f) => {
-    try { f.contentWindow.postMessage(JSON.stringify({ event: 'command', func: clipsMuted ? 'mute' : 'unMute', args: [] }), '*'); } catch (e) {}
-  });
+  localStorage.setItem('tf_clip_sound', clipsMuted ? 'off' : 'on');
+  $$('.clip-screen iframe').forEach((f) => clipCmd(f, clipsMuted ? 'mute' : 'unMute'));
   $$('.clip-mute').forEach((s) => (s.textContent = clipsMuted ? 'Sound off' : 'Sound on'));
+}
+function toggleClipPlay() {
+  clipsPaused = !clipsPaused;
+  $$('.clip-screen iframe').forEach((f) => clipCmd(f, clipsPaused ? 'pauseVideo' : 'playVideo'));
+  $$('.clip-pp').forEach((s) => (s.textContent = clipsPaused ? 'Play' : 'Pause'));
+  $$('[data-act="clip-play"]').forEach((b) => { const lbl = b.querySelector('.clip-pp'); b.innerHTML = (clipsPaused ? I.play : I.pause) + (lbl ? lbl.outerHTML : ''); });
 }
 
 /* ============ REPLAYS ============ */
@@ -891,6 +914,7 @@ document.addEventListener('click', async (e) => {
     case 'news-src': news.source = el.dataset.v; render(); break;
     case 'news-mute': toggleNewsSound(); break;
     case 'clip-sound': toggleClipSound(); break;
+    case 'clip-play': toggleClipPlay(); break;
     case 'ex-tab': ex.tab = el.dataset.t; exSearch(); break;
     case 'ex-clear': { ex.q = ''; const box = $('#exq'); if (box) { box.value = ''; box.focus(); } exSearch(); break; }
     case 'disc-style': disc.style = el.dataset.v; $$('[data-act="disc-style"]').forEach((b) => b.setAttribute('aria-pressed', b === el)); renderDiscGrid(); break;
