@@ -195,23 +195,43 @@ a.ncard:hover .nlink { color: var(--ink); }
 
 /* ============ CREATOR CLIPS ============ */
 /* Always visibly from YouTube, never dressed up as a trade posted here. */
-.yt-tag { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; flex: none;
-  font-family: var(--stamp); font-weight: 700; font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--muted); border: 1px solid var(--line); border-radius: var(--r); padding: 4px 8px; }
-.yt-tag svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
+/* Attribution in the site's own type rather than a bolted-on embed box.
+   It stays visible: obscuring it is not allowed, and it is whose work this is. */
+.yt-tag { font-family: var(--stamp); font-weight: 600; font-size: 11px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); }
+.yt-tag::before { content: "·"; margin: 0 6px; }
 .clip-post .post-h .who a { color: var(--ink); }
-.clip-screen { position: relative; background: #000; overflow: hidden; aspect-ratio: 16 / 9; }
-.clip-screen.clip-tall { aspect-ratio: 9 / 16; max-height: 78vh; margin: 0 auto; }
+/* Vertical, edge to edge: Shorts are already 9:16, so the player fills the
+   frame with no letterboxing. */
+.clip-screen { position: relative; background: #000; overflow: hidden; aspect-ratio: 9 / 16; }
+.clip-screen.clip-tall { aspect-ratio: 9 / 16; width: min(100%, 420px); margin: 0 auto; }
+.clip-reel .clip-screen { aspect-ratio: 9 / 16; width: auto; height: 100%; max-width: 100%; margin: 0 auto; }
+/* on a phone the side rail would sit over the player, which is not allowed:
+   lay it out under the clip instead */
+@media (max-width: 760px) {
+  .clip-reel { grid-template-columns: 1fr; }
+  .clip-reel .reel-acts { position: static; display: flex; justify-content: flex-end; gap: 16px; padding: 0 2px; }
+  .clip-reel .reel-acts .act { flex-direction: row; gap: 6px; }
+  .clip-reel .reel-acts .act span { display: inline; }
+  .clip-credit { padding: 0 2px; }
+}
+.clip-reel .phone { display: grid; place-items: center; }
 .clip-screen .clip-poster { width: 100%; height: 100%; object-fit: cover; display: block; }
 .clip-screen iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 .clip-screen.on .clip-poster { display: none; }
-/* clips play on scroll, so the only control is sound */
-.clip-mute { position: absolute; right: 10px; top: 10px; z-index: 2; cursor: pointer;
-  font-size: 12px; font-weight: 600; color: var(--ink); background: rgba(7,20,15,.82);
-  padding: 5px 9px; border-radius: var(--r); }
-.clip-mute:hover { background: var(--floor); color: var(--paper-ink); }
+/* Nothing is drawn on top of the player: the credit, the title and the sound
+   control all sit outside it. */
+.clip-col { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 10px; min-width: 0; height: 100%; padding: 10px 0; }
+.clip-col .phone { min-height: 0; height: 100%; }
+.clip-credit { text-align: left; max-width: 420px; margin: 0 auto; width: 100%; }
+.clip-credit a { font-weight: 600; font-size: 15px; }
+.clip-credit p { color: var(--muted); font-size: 14px; line-height: 1.35; margin-top: 2px; }
+.clip-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px 0; }
+.clip-bar .btn { gap: 6px; }
+.clip-bar .btn svg { width: 15px; height: 15px; }
 .clip-cap { color: var(--ink); }
-.clip-link { display: inline-flex; align-items: center; gap: 6px; margin: 4px 16px 16px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.clip-post .media { background: #000; }
+.clip-link { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
 .clip-link svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.8; }
 .clip-link:hover { color: var(--floor); }
 .feed-note { color: var(--muted); font-size: 14px; padding: 14px 0 18px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }

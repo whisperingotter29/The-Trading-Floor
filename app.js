@@ -242,7 +242,7 @@ async function feedView() {
   const f = feedFilter;
   const [{ rows, error }, tapeRes, rising, clipRes] = await Promise.all([
     DB.posts({ filter: f }), DB.posts({ limit: 10 }), DB.strategies({ limit: 4 }),
-    f === 'all' || f === 'videos' ? DB.creatorClips({ shortsOnly: false, limit: 8 }) : { rows: [] },
+    f === 'all' || f === 'videos' ? DB.creatorClips({ shortsOnly: true, limit: 8 }) : { rows: [] },
   ]);
   if (error) return shell('floor', `<div class="page">${errorBlock(error)}</div>`);
   feedCursor = rows.length ? rows[rows.length - 1].created_at : null; feedDone = rows.length < 20;
@@ -296,30 +296,31 @@ function watchFeedMore() {
 /* Clips from trading channels on YouTube. They are always credited to the
    channel and link back to it: they are not posts by anyone on this site,
    and they carry no trade result. The player loads only once tapped. */
-function clipBadge() { return `<span class="yt-tag">${I.ext}YouTube</span>`; }
+function clipBadge() { return `<span class="yt-tag">YouTube</span>`; }
 let clipsMuted = true;
 function clipReelHTML(c) {
   return `<section class="reel clip-reel" data-vid="${esc(c.video_id)}" data-title="${esc(c.title)}">
-    <div class="phone"><div class="phone-screen clip-screen">
-      <img class="clip-poster" src="${esc(c.image_url || '')}" alt="" loading="lazy">
-      <span class="clip-mute" data-act="clip-sound">${clipsMuted ? 'Tap for sound' : 'Sound on'}</span>
-      <div class="phone-ov"><div class="who"><span class="badge t-board" style="--s:28px" aria-hidden="true">YT</span>
-          <a href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">${esc(c.source)}</a>${clipBadge()}</div>
-        <p>${esc(c.title)}</p></div></div></div>
+    <div class="clip-col">
+      <div class="phone"><div class="phone-screen clip-screen">
+        <img class="clip-poster" src="${esc(c.image_url || '')}" alt="" loading="lazy"></div></div>
+      <div class="clip-credit"><a href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">${esc(c.source)}</a>${clipBadge()}
+        <p>${esc(c.title)}</p></div>
+    </div>
     <div class="reel-acts">
+      <button class="act" data-act="clip-sound" aria-label="Sound on or off">${I.sound}<span class="clip-mute">${clipsMuted ? 'Sound off' : 'Sound on'}</span></button>
       <a class="act" href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer" aria-label="Watch on YouTube">${I.ext}<span>YouTube</span></a>
     </div></section>`;
 }
 function clipPostHTML(c) {
   return `<article class="post clip-post" data-clip="${esc(c.video_id)}">
-    <div class="post-h"><span class="badge t-board" style="--s:40px" aria-hidden="true">YT</span>
+    <div class="post-h"><span class="badge t-board" style="--s:40px" aria-hidden="true">${esc((c.source || '?').slice(0, 3).toUpperCase())}</span>
       <div class="who"><a href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">${esc(c.source)}</a>
-        <small>On YouTube, ${ago(c.t)} ago</small></div>${clipBadge()}</div>
-    <div class="media clip-screen ${c.is_short ? 'clip-tall' : ''}">
-      <img class="clip-poster" src="${esc(c.image_url || '')}" alt="" loading="lazy">
-      <span class="clip-mute" data-act="clip-sound">${clipsMuted ? 'Tap for sound' : 'Sound on'}</span></div>
+        <small>${ago(c.t)} ago${clipBadge()}</small></div></div>
+    <div class="media clip-screen clip-tall">
+      <img class="clip-poster" src="${esc(c.image_url || '')}" alt="" loading="lazy"></div>
+    <div class="clip-bar"><button class="btn btn-line btn-sm" data-act="clip-sound">${I.sound}<span class="clip-mute">${clipsMuted ? 'Sound off' : 'Sound on'}</span></button>
+      <a class="clip-link" href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">Watch on ${esc(c.source)}'s channel${I.ext}</a></div>
     <p class="caption clip-cap">${esc(c.title)}</p>
-    <a class="clip-link" href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">Watch on ${esc(c.source)}'s channel${I.ext}</a>
   </article>`;
 }
 /* Clips start themselves as they scroll into view and stop when they leave, so
@@ -329,7 +330,13 @@ function mountClip(wrap) {
   const host = wrap.closest('[data-vid], [data-clip]');
   const vid = host?.dataset.vid || host?.dataset.clip; if (!vid) return;
   const f = document.createElement('iframe');
-  f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(vid)}?autoplay=1&mute=${clipsMuted ? 1 : 0}&rel=0&playsinline=1&enablejsapi=1&loop=1&playlist=${encodeURIComponent(vid)}&origin=${encodeURIComponent(location.origin)}`;
+  /* controls, title bar, keyboard and end-screen suggestions are all turned off
+     through YouTube's own player parameters. The small YouTube mark stays: it is
+     part of the player and covering it is not allowed. */
+  const params = new URLSearchParams({ autoplay: '1', mute: clipsMuted ? '1' : '0', controls: '0', disablekb: '1',
+    rel: '0', iv_load_policy: '3', playsinline: '1', enablejsapi: '1', loop: '1', playlist: vid,
+    modestbranding: '1', origin: location.origin });
+  f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(vid)}?${params}`;
   f.title = host.dataset.title || 'Clip';
   f.allow = 'autoplay; encrypted-media; picture-in-picture; clipboard-write; web-share';
   f.referrerPolicy = 'strict-origin-when-cross-origin'; f.allowFullscreen = true; f.frameBorder = '0';
@@ -373,7 +380,7 @@ function toggleClipSound() {
   $$('.clip-screen iframe').forEach((f) => {
     try { f.contentWindow.postMessage(JSON.stringify({ event: 'command', func: clipsMuted ? 'mute' : 'unMute', args: [] }), '*'); } catch (e) {}
   });
-  $$('.clip-mute').forEach((s) => (s.textContent = clipsMuted ? 'Tap for sound' : 'Sound on'));
+  $$('.clip-mute').forEach((s) => (s.textContent = clipsMuted ? 'Sound off' : 'Sound on'));
 }
 
 /* ============ REPLAYS ============ */
