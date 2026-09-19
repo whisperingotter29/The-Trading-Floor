@@ -240,8 +240,9 @@ const errorBlock = (msg) => emptyBlock('Could not load this.', esc(msg), `<butto
 let feedFilter = 'all', feedCursor = null, feedDone = false;
 async function feedView() {
   const f = feedFilter;
-  const [{ rows, error }, tapeRes, rising] = await Promise.all([
+  const [{ rows, error }, tapeRes, rising, clipRes] = await Promise.all([
     DB.posts({ filter: f }), DB.posts({ limit: 10 }), DB.strategies({ limit: 4 }),
+    f === 'all' || f === 'videos' ? DB.creatorClips({ shortsOnly: false, limit: 8 }) : { rows: [] },
   ]);
   if (error) return shell('floor', `<div class="page">${errorBlock(error)}</div>`);
   feedCursor = rows.length ? rows[rows.length - 1].created_at : null; feedDone = rows.length < 20;
@@ -250,10 +251,12 @@ async function feedView() {
     .map(([k, l]) => `<button class="chip" data-act="feed-filter" data-f="${k}" aria-pressed="${f === k}">${l}</button>`).join('');
   const tapeLi = tape.map((p) => `<li>${badge(p, 28)}<span><b>${esc(p.handle)}</b> ${p.tk.side} ${esc(p.sym)}</span><i class="${p.tk.pnl > 0 ? 'w' : ''}">${money(p.tk.pnl)}</i></li>`).join('');
   const risingHTML = rising.map((s) => `<a class="mini-strat" href="#/s/${s.id}">${badge(s, 34)}<div><strong>${esc(s.title)}</strong><small>${esc(s.market)}, ${s.steps.length} steps, ${compact(s.followers)} following</small></div></a>`).join('');
-  const none = !tape.length;
+  const none = !tape.length && !(clipRes.rows || []).length;
   const main = none
     ? emptyBlock('The floor is quiet.', 'Nobody has posted a trade yet. Upload a screenshot or a screen recording of a trade you took and yours will be the first thing everyone sees.', `<button class="btn btn-floor" data-act="compose">${I.plus}Post the first trade</button>`)
-    : rows.length ? rows.map(postHTML).join('') + (feedDone ? '' : `<div class="feed-more" id="feedMore">${loadingBlock()}</div>`) : `<div class="empty">${f === 'following' ? 'No posts from people you follow yet.' : 'No posts match this filter yet.'}</div>`;
+    : rows.length ? mixFeed(rows, clipRes.rows || []) + (feedDone ? '' : `<div class="feed-more" id="feedMore">${loadingBlock()}</div>`)
+      : (clipRes.rows || []).length ? `<div class="feed-note">Nothing posted here yet. While the floor fills up, here is what traders are putting out on YouTube.</div>` + (clipRes.rows || []).map(clipPostHTML).join('')
+      : `<div class="empty">${f === 'following' ? 'No posts from people you follow yet.' : 'No posts match this filter yet.'}</div>`;
   return shell('floor', `<div class="cols"><section aria-label="Feed">
       ${none ? '' : `<div class="feed-tabs" role="group" aria-label="Filter feed">${chips}</div>`}
       <div id="feedList">${main}</div>
@@ -263,6 +266,13 @@ async function feedView() {
       <div><h3>Strategies</h3>${risingHTML || '<p class="side-empty">No strategies have been published yet.</p>'}<a class="btn btn-line btn-sm" style="margin-top:14px" href="#/${rising.length ? 'discover' : 'builder'}">${rising.length ? 'Discover strategies' : 'Build the first one'}</a></div>
     </aside></div>`);
 }
+/* user posts come first; a creator clip drops in after every fourth one */
+function mixFeed(posts, clips) {
+  const out = []; let ci = 0;
+  posts.forEach((p, i) => { out.push(postHTML(p)); if ((i + 1) % 4 === 0 && clips[ci]) out.push(clipPostHTML(clips[ci++])); });
+  return out.join('');
+}
+
 /* infinite scroll: load 20 more when the sentinel comes into view */
 let _moreIO, _loadingMore = false;
 function watchFeedMore() {
@@ -282,11 +292,60 @@ function watchFeedMore() {
   _moreIO.observe(el);
 }
 
+/* ============ CREATOR CLIPS ============ */
+/* Clips from trading channels on YouTube. They are always credited to the
+   channel and link back to it: they are not posts by anyone on this site,
+   and they carry no trade result. The player loads only once tapped. */
+function clipBadge() { return `<span class="yt-tag">${I.ext}YouTube</span>`; }
+function clipReelHTML(c) {
+  return `<section class="reel clip-reel" data-vid="${esc(c.video_id)}" data-title="${esc(c.title)}">
+    <div class="phone"><div class="phone-screen clip-screen">
+      <img class="clip-poster" src="${esc(c.image_url || '')}" alt="" loading="lazy">
+      <button class="clip-play" data-act="play-clip" aria-label="Play: ${esc(c.title)}"><svg viewBox="0 0 24 24"><path d="M7 4l14 8-14 8z"/></svg></button>
+      <div class="phone-ov"><div class="who"><span class="badge t-board" style="--s:28px" aria-hidden="true">YT</span>
+          <a href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">${esc(c.source)}</a>${clipBadge()}</div>
+        <p>${esc(c.title)}</p></div></div></div>
+    <div class="reel-acts">
+      <a class="act" href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer" aria-label="Watch on YouTube">${I.ext}<span>YouTube</span></a>
+    </div></section>`;
+}
+function clipPostHTML(c) {
+  return `<article class="post clip-post" data-clip="${esc(c.video_id)}">
+    <div class="post-h"><span class="badge t-board" style="--s:40px" aria-hidden="true">YT</span>
+      <div class="who"><a href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">${esc(c.source)}</a>
+        <small>On YouTube, ${ago(c.t)} ago</small></div>${clipBadge()}</div>
+    <div class="media clip-screen ${c.is_short ? 'clip-tall' : ''}">
+      <img class="clip-poster" src="${esc(c.image_url || '')}" alt="" loading="lazy">
+      <button class="clip-play" data-act="play-clip" aria-label="Play: ${esc(c.title)}"><svg viewBox="0 0 24 24"><path d="M7 4l14 8-14 8z"/></svg></button></div>
+    <p class="caption clip-cap">${esc(c.title)}</p>
+    <a class="clip-link" href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">Watch on ${esc(c.source)}'s channel${I.ext}</a>
+  </article>`;
+}
+/* swap the poster for the real player, one at a time */
+function playClip(btn) {
+  const wrap = btn.closest('.clip-screen'); if (!wrap) return;
+  const host = btn.closest('[data-vid], [data-clip]');
+  const vid = host?.dataset.vid || host?.dataset.clip; if (!vid) return;
+  $$('.clip-screen iframe').forEach((f) => { const w = f.closest('.clip-screen'); f.remove(); w.classList.remove('on'); });
+  wrap.classList.add('on');
+  const f = document.createElement('iframe');
+  f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(vid)}?autoplay=1&rel=0&playsinline=1`;
+  f.title = host.dataset.title || 'Clip';
+  f.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share';
+  f.referrerPolicy = 'strict-origin-when-cross-origin'; f.allowFullscreen = true; f.frameBorder = '0';
+  wrap.appendChild(f);
+}
+function stopClips() { $$('.clip-screen iframe').forEach((f) => { const w = f.closest('.clip-screen'); f.remove(); w && w.classList.remove('on'); }); }
+
 /* ============ REPLAYS ============ */
 async function replaysView() {
-  const { rows, error } = await DB.posts({ video: true, limit: 30 });
+  const [{ rows, error }, clipRes] = await Promise.all([
+    DB.posts({ video: true, limit: 30 }),
+    DB.creatorClips({ shortsOnly: true, limit: 20 }),
+  ]);
   if (error) return shell('replays', `<div class="page">${errorBlock(error)}</div>`);
-  if (!rows.length) return shell('replays', `<div class="page">${emptyBlock('No replays yet.', 'Replays are screen recordings of trades, uploaded as MP4, MOV or WebM. When someone posts one it plays here in a vertical feed.', `<button class="btn btn-floor" data-act="compose">${I.upload}Upload a screen recording</button>`)}</div>`);
+  const clips = clipRes.rows || [];
+  if (!rows.length && !clips.length) return shell('replays', `<div class="page">${emptyBlock('No replays yet.', 'Replays are screen recordings of trades, uploaded as MP4, MOV or WebM. When someone posts one it plays here in a vertical feed.', `<button class="btn btn-floor" data-act="compose">${I.upload}Upload a screen recording</button>`)}</div>`);
   const reels = rows.map((p) => { POSTS.set(p.id, p); const liked = state.liked.has(p.id);
     return `<section class="reel" data-post="${p.id}"><div class="phone"><div class="phone-screen media">${mediaHTML(p, { reel: true })}
       <div class="phone-ov"><div class="who">${badge(p, 28)}<a href="#/u/${esc(p.handle)}">${esc(p.handle)}</a></div>${p.caption ? `<p>${esc(p.caption)}</p>` : ''}${ticketStrip(p)}</div></div></div>
@@ -296,7 +355,13 @@ async function replaysView() {
         <button class="act" data-act="save" data-id="${p.id}" aria-pressed="${state.saved.has(p.id)}" aria-label="Save">${I.save}<span>Save</span></button>
         ${p.strategy_id ? `<a class="act" href="#/s/${p.strategy_id}" aria-label="Strategy">${I.builder}<span>Strategy</span></a>` : ''}
       </div></section>`; }).join('');
-  return shell('replays', `<div class="reels">${reels}</div>`);
+  // creator clips are interleaved, one after every two user replays
+  const mixed = [];
+  const userReels = reels ? reels.split('</section>').filter((x) => x.trim()).map((x) => x + '</section>') : [];
+  let ci = 0;
+  userReels.forEach((r, i) => { mixed.push(r); if ((i + 1) % 2 === 0 && clips[ci]) mixed.push(clipReelHTML(clips[ci++])); });
+  while (clips[ci]) mixed.push(clipReelHTML(clips[ci++]));
+  return shell('replays', `<div class="reels">${mixed.join('')}</div>`);
 }
 
 /* ============ NEWS ============ */
@@ -779,6 +844,7 @@ document.addEventListener('click', async (e) => {
     case 'news-tab': news.tab = el.dataset.t; news.source = 'All'; render(); break;
     case 'news-src': news.source = el.dataset.v; render(); break;
     case 'news-mute': toggleNewsSound(); break;
+    case 'play-clip': playClip(el); break;
     case 'ex-tab': ex.tab = el.dataset.t; exSearch(); break;
     case 'ex-clear': { ex.q = ''; const box = $('#exq'); if (box) { box.value = ''; box.focus(); } exSearch(); break; }
     case 'disc-style': disc.style = el.dataset.v; $$('[data-act="disc-style"]').forEach((b) => b.setAttribute('aria-pressed', b === el)); renderDiscGrid(); break;
@@ -848,7 +914,7 @@ function parseHash() { const h = location.hash.replace(/^#/, '') || '/'; const [
 const ACTIVE = { floor: 'floor', replays: 'replays', news: 'news', explore: 'explore', discover: 'explore', s: 'discover', u: 'discover', me: 'me', builder: 'builder' };
 async function render(keepScroll = false) {
   const tok = ++_tok; const y = scrollY; const { parts, params } = parseHash(); const r = parts[0] || '';
-  destroyReplays(); destroyMedia(); if (_moreIO) _moreIO.disconnect(); if (_newsIO) _newsIO.disconnect(); destroyReels(); Landing.destroy(); POSTS.clear();
+  destroyReplays(); destroyMedia(); if (_moreIO) _moreIO.disconnect(); if (_newsIO) _newsIO.disconnect(); destroyReels(); stopClips(); Landing.destroy(); POSTS.clear();
   const app = $('#app');
   if (r === '') { closeModal(); app.innerHTML = Landing.html(); document.title = 'The Trading Floor'; Landing.init(); window.scrollTo(0, 0); lastRoute = '#/'; return; }
   if (!keepScroll) app.innerHTML = shell(ACTIVE[r] || 'floor', `<div class="page">${loadingBlock()}</div>`);

@@ -239,6 +239,20 @@ const DB = {
     return data || [];
   },
 
+  /* ---------- creator clips ---------- */
+  /* Public clips from trading channels, pulled by the scheduled function.
+     They are shown as embedded YouTube videos credited to the channel,
+     never as posts by a trader on this site. */
+  async creatorClips({ shortsOnly = false, limit = 20, before } = {}) {
+    let q = sb.from('news_items').select('*').eq('category', 'creator').eq('kind', 'video')
+      .order('published_at', { ascending: false }).limit(limit);
+    if (shortsOnly) q = q.eq('is_short', true);
+    if (before) q = q.lt('published_at', before);
+    const { data, error } = await q;
+    if (error) return { rows: [], error: dbError(error, 'Could not load creator clips.') };
+    return { rows: (data || []).map((r) => ({ ...r, t: Date.parse(r.published_at), creator: true })) };
+  },
+
   /* ---------- news ---------- */
   /* Headlines and video links pulled from public RSS feeds by a scheduled
      function. We store only title, link, thumbnail and a short summary, and
