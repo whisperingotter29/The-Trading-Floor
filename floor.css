@@ -205,7 +205,12 @@ a.ncard:hover .nlink { color: var(--ink); }
    frame with no letterboxing. */
 .clip-screen { position: relative; background: #000; overflow: hidden; aspect-ratio: 9 / 16; }
 .clip-screen.clip-tall { aspect-ratio: 9 / 16; width: min(100%, 420px); margin: 0 auto; }
-.clip-reel .clip-screen { aspect-ratio: 9 / 16; width: auto; height: 100%; max-width: 100%; margin: 0 auto; }
+/* The clip is sized by the height it is given, so it can never grow past its
+   own screen and run into the next one. */
+.clip-reel { overflow: hidden; }
+.clip-stage { min-height: 0; height: 100%; display: grid; place-items: center; }
+.clip-reel .clip-screen { height: 100%; max-height: 100%; width: auto; max-width: 100%;
+  aspect-ratio: 9 / 16; margin: 0 auto; border: 1px solid var(--line); border-radius: 4px; }
 /* on a phone the side rail would sit over the player, which is not allowed:
    lay it out under the clip instead */
 @media (max-width: 760px) {
@@ -215,14 +220,13 @@ a.ncard:hover .nlink { color: var(--ink); }
   .clip-reel .reel-acts .act span { display: inline; }
   .clip-credit { padding: 0 2px; }
 }
-.clip-reel .phone { display: grid; place-items: center; }
 .clip-screen .clip-poster { width: 100%; height: 100%; object-fit: cover; display: block; }
 .clip-screen iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 .clip-screen.on .clip-poster { display: none; }
 /* Nothing is drawn on top of the player: the credit, the title and the sound
    control all sit outside it. */
-.clip-col { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 10px; min-width: 0; height: 100%; padding: 10px 0; }
-.clip-col .phone { min-height: 0; height: 100%; }
+.clip-col { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 10px; min-width: 0;
+  height: 100%; max-height: 100%; overflow: hidden; padding: 10px 0; }
 .clip-credit { text-align: left; max-width: 420px; margin: 0 auto; width: 100%; }
 .clip-credit a { font-weight: 600; font-size: 15px; }
 .clip-credit p { color: var(--muted); font-size: 14px; line-height: 1.35; margin-top: 2px; }

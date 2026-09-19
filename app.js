@@ -301,7 +301,7 @@ let clipsMuted = true;
 function clipReelHTML(c) {
   return `<section class="reel clip-reel" data-vid="${esc(c.video_id)}" data-title="${esc(c.title)}">
     <div class="clip-col">
-      <div class="phone"><div class="phone-screen clip-screen">
+      <div class="clip-stage"><div class="clip-screen">
         <img class="clip-poster" src="${esc(c.image_url || '')}" alt="" loading="lazy"></div></div>
       <div class="clip-credit"><a href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">${esc(c.source)}</a>${clipBadge()}
         <p>${esc(c.title)}</p></div>
