@@ -13,7 +13,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
 let SESSION = null; // Supabase auth session (signed in or not)
 let ME = null;      // the signed-in person's profile row, null until they set one up
 
-const state = { liked: new Set(), saved: new Set(), following: new Set(), followedStrategies: new Set(), draft: null };
+const state = { liked: new Set(), saved: new Set(), following: new Set(), followedStrategies: new Set(), blocked: new Set(), draft: null };
 
 function dbError(error, fallback) {
   if (!error) return null;
@@ -41,7 +41,7 @@ const DB = {
     });
   },
   async loadMe() {
-    ME = null; state.liked.clear(); state.saved.clear(); state.following.clear(); state.followedStrategies.clear();
+    ME = null; state.liked.clear(); state.saved.clear(); state.following.clear(); state.followedStrategies.clear(); state.blocked.clear();
     if (!uid()) return;
     const { data } = await sb.from('profiles_stats').select('*').eq('id', uid()).maybeSingle();
     ME = data || null;
@@ -52,6 +52,7 @@ const DB = {
       ]);
       (f.data || []).forEach((r) => state.following.add(r.following_id));
       (sf.data || []).forEach((r) => state.followedStrategies.add(r.strategy_id));
+      await DB.loadBlocks();
     }
   },
   redirectTo() { return location.origin + location.pathname; },
@@ -237,6 +238,35 @@ const DB = {
   async topTraders(limit = 12) {
     const { data } = await sb.from('profiles_stats').select('*').order('follower_count', { ascending: false }).limit(limit);
     return data || [];
+  },
+
+  /* ---------- safety: reporting, blocking, account deletion ---------- */
+  /* Required for the App Store (guidelines 1.2 and 5.1.1) and sensible anyway. */
+  async report({ post_id = null, comment_id = null, profile_id = null, reason, detail = '' }) {
+    const { error } = await sb.from('reports').insert({ reporter_id: uid(), post_id, comment_id, profile_id, reason, detail: detail.slice(0, 500) });
+    if (error && error.code === '23505') return 'You have already reported this. Thanks, we are looking at it.';
+    return error ? dbError(error, 'Could not send the report.') : null;
+  },
+  async loadBlocks() {
+    state.blocked.clear();
+    if (!uid()) return;
+    const { data } = await sb.from('blocks').select('blocked_id').eq('blocker_id', uid());
+    (data || []).forEach((b) => state.blocked.add(b.blocked_id));
+  },
+  async setBlock(userId, on) {
+    const q = on ? sb.from('blocks').insert({ blocker_id: uid(), blocked_id: userId })
+                 : sb.from('blocks').delete().eq('blocker_id', uid()).eq('blocked_id', userId);
+    const { error } = await q;
+    if (error && error.code !== '23505') return dbError(error, 'Could not update the block.');
+    on ? state.blocked.add(userId) : state.blocked.delete(userId);
+    if (on) { state.following.delete(userId); await sb.from('follows').delete().eq('follower_id', uid()).eq('following_id', userId); }
+    return null;
+  },
+  async deleteAccount() {
+    const { error } = await sb.rpc('delete_my_account');
+    if (error) return dbError(error, 'Could not delete the account.');
+    await sb.auth.signOut(); SESSION = null; await DB.loadMe();
+    return null;
   },
 
   /* ---------- creator clips ---------- */

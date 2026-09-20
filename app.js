@@ -15,6 +15,8 @@ const I = {
   floor: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v4M6 17v4M12 2v5M12 17v5M18 5v4M18 15v4"/><rect x="4" y="7" width="4" height="10"/><rect x="10" y="7" width="4" height="10"/><rect x="16" y="9" width="4" height="6"/></svg>',
   replay: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2" width="14" height="20"/><path d="M10 9l5 3-5 3z"/></svg>',
   upload: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>',
+  flag: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
+  block: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/></svg>',
   news: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h13v14H4zM17 9h3v8a2 2 0 0 1-3 0V9z"/><path d="M7 8h7M7 11h7M7 14h4"/></svg>',
   sound: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9h3l4-4v14l-4-4H5z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg>',
   ext: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-8 8M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
@@ -169,6 +171,60 @@ function openProfileSetup({ edit = false } = {}) {
   setTimeout(() => $('#suName')?.focus(), 30);
 }
 
+/* ============ REPORTING AND BLOCKING ============ */
+const REASONS = [['spam', 'Spam or misleading'], ['harassment', 'Harassment or bullying'], ['hate', 'Hate speech'],
+  ['sexual', 'Sexual content'], ['violence', 'Violence'], ['scam', 'Scam, signals or solicitation'],
+  ['impersonation', 'Impersonation'], ['other', 'Something else']];
+function openReport(target) {
+  if (!need(() => openReport(target))) return;
+  const what = target.post_id ? 'post' : target.comment_id ? 'comment' : 'trader';
+  openModal(`<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="rpH" style="width:min(460px,100%)">
+    <header><h2 id="rpH">Report this ${what}</h2><button class="ib" data-act="close" aria-label="Close">${I.x}</button></header>
+    <div class="su">
+      <p class="su-lead">Reports are private. We review them and may remove content or suspend the account.</p>
+      <div class="field"><span>What is wrong?</span><div class="rp-list" role="radiogroup" aria-label="Reason">
+        ${REASONS.map(([k, l], i) => `<label class="rp-opt"><input type="radio" name="rpReason" value="${k}" ${i === 0 ? 'checked' : ''}><span>${l}</span></label>`).join('')}
+      </div></div>
+      <label class="field"><span>Anything else? <em class="opt">optional</em></span><textarea class="input" id="rpDetail" maxlength="500" placeholder="Give us the detail that helps"></textarea></label>
+      <div class="err" id="rpErr" role="alert"></div>
+      <button class="btn btn-floor" id="rpGo">Send report</button>
+      ${target.profile_id ? `<button class="btn btn-line" data-act="block" data-uid="${esc(target.profile_id)}">Block this trader too</button>` : ''}
+    </div></div>`);
+  $('#rpGo').addEventListener('click', async () => {
+    const go = $('#rpGo'); const reason = $('input[name="rpReason"]:checked')?.value;
+    go.disabled = true; go.textContent = 'Sending...';
+    const msg = await DB.report({ ...target, reason, detail: $('#rpDetail').value.trim() });
+    if (msg) { $('#rpErr').textContent = msg; go.disabled = false; go.textContent = 'Send report'; return; }
+    closeModal(); toast('Report sent. Thank you.');
+  });
+}
+async function toggleBlock(userId) {
+  if (!need(() => toggleBlock(userId))) return;
+  const on = !state.blocked.has(userId);
+  if (on && !confirm('Block this trader? You will not see their posts or comments, and they will not see yours.')) return;
+  const msg = await DB.setBlock(userId, on);
+  if (msg) { toast(msg); return; }
+  closeModal(); toast(on ? 'Blocked' : 'Unblocked'); render(true);
+}
+function openDeleteAccount() {
+  openModal(`<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="daH" style="width:min(460px,100%)">
+    <header><h2 id="daH">Delete your account</h2><button class="ib" data-act="close" aria-label="Close">${I.x}</button></header>
+    <div class="su">
+      <p class="su-lead">This removes your profile, every trade you posted, your uploads, your comments and your strategies. It cannot be undone.</p>
+      <label class="field"><span>Type your handle <b>${esc(ME ? ME.handle : '')}</b> to confirm</span><input class="input" id="daConfirm" autocomplete="off" spellcheck="false"></label>
+      <div class="err" id="daErr" role="alert"></div>
+      <button class="btn btn-danger" id="daGo">Delete my account</button>
+      <button class="btn btn-line" data-act="close">Keep my account</button>
+    </div></div>`);
+  $('#daGo').addEventListener('click', async () => {
+    if ($('#daConfirm').value.trim() !== (ME && ME.handle)) { $('#daErr').textContent = 'Type your handle exactly to confirm.'; return; }
+    const go = $('#daGo'); go.disabled = true; go.textContent = 'Deleting...';
+    const msg = await DB.deleteAccount();
+    if (msg) { $('#daErr').textContent = msg; go.disabled = false; go.textContent = 'Delete my account'; return; }
+    closeModal(); location.hash = '#/floor'; render(); toast('Your account has been deleted.');
+  });
+}
+
 /* ============ POST PARTS ============ */
 function ticketStrip(p) {
   const k = p.tk; if (!k) return '';
@@ -191,7 +247,9 @@ function postHTML(p) {
   const more = p.commentCount > p.comments.length ? `<button class="more-cmts" data-act="open-post" data-id="${p.id}">View all ${p.commentCount} comments</button>` : '';
   return `<article class="post" data-post="${p.id}">
     <div class="post-h">${badge(p)}<div class="who"><a href="#/u/${esc(p.handle)}">${esc(p.handle)}</a><small>${esc(p.sym)} ${esc(p.tf)}, ${esc(p.session)} session</small></div>
-      ${p.strategy_id ? `<a class="strat-link" href="#/s/${p.strategy_id}">Strategy</a>` : ''}${mine ? `<button class="ib" data-act="del-post" data-id="${p.id}" aria-label="Delete post" title="Delete post">${I.x}</button>` : ''}</div>
+      ${p.strategy_id ? `<a class="strat-link" href="#/s/${p.strategy_id}">Strategy</a>` : ''}${mine
+        ? `<button class="ib" data-act="del-post" data-id="${p.id}" aria-label="Delete post" title="Delete post">${I.x}</button>`
+        : `<button class="ib" data-act="report-post" data-id="${p.id}" data-uid="${esc(p.user_id)}" aria-label="Report post" title="Report">${I.flag}</button>`}</div>
     <div class="media" data-act="dbl-like" data-id="${p.id}">${mediaHTML(p)}
       <svg class="heart" viewBox="0 0 24 24" aria-hidden="true"><path fill="#18A583" d="M12 20s-7-4.4-8.7-8.9A4.6 4.6 0 0 1 12 7.6a4.6 4.6 0 0 1 8.7 3.5C19 15.6 12 20 12 20z"/></svg></div>
     <div class="acts">
@@ -706,7 +764,9 @@ async function profileView(h, isMeRoute = false) {
   return shell(me ? 'me' : 'discover', `<div class="page"><header class="prof">${badge(u, 150)}<div>
       <h1>${esc(u.name)}</h1><div class="h">@${esc(u.handle)}, badge ${esc(u.badge)}</div>${u.bio ? `<p>${esc(u.bio)}</p>` : ''}
       <div class="stats"><span><b>${posts.length}</b>posts</span>${posts.length ? `<span><b>${wins}/${posts.length}</b>winners</span><span><b>${money(Math.round(net * 100) / 100)}</b>net P/L</span>` : ''}<span><b>${compact(u.follower_count)}</b>followers</span><span><b>${compact(u.following_count)}</b>following</span><span><b>${strats.length}</b>strategies</span></div>
-      <div class="row">${me ? `<button class="btn btn-floor" data-act="compose">${I.plus}Post a trade</button><button class="btn btn-line" data-act="edit-profile">Edit profile</button><a class="btn btn-line" href="#/builder">New strategy</a><button class="btn btn-line" data-act="signout">Sign out</button>` : `<button class="btn ${fol ? 'btn-line' : 'btn-floor'}" data-act="follow" data-uid="${u.id}">${fol ? 'Following' : 'Follow'}</button>`}
+      <div class="row">${me ? `<button class="btn btn-floor" data-act="compose">${I.plus}Post a trade</button><button class="btn btn-line" data-act="edit-profile">Edit profile</button><a class="btn btn-line" href="#/builder">New strategy</a><button class="btn btn-line" data-act="signout">Sign out</button><button class="btn btn-line btn-quiet" data-act="delete-account">Delete account</button>` : `<button class="btn ${fol ? 'btn-line' : 'btn-floor'}" data-act="follow" data-uid="${u.id}">${fol ? 'Following' : 'Follow'}</button>
+        <button class="btn btn-line" data-act="block" data-uid="${u.id}">${state.blocked.has(u.id) ? 'Unblock' : 'Block'}</button>
+        <button class="btn btn-line" data-act="report-profile" data-uid="${u.id}">${I.flag}Report</button>`}
       ${(u.markets || []).map((m) => `<span class="chip" style="display:inline-grid;place-items:center">${esc(m)}</span>`).join('')}</div>
     </div></header>
     <div class="tabs" role="tablist">${[['posts', 'Posts'], ['replays', 'Replays'], ['strategies', 'Strategies']].map(([k, l]) => `<button role="tab" aria-selected="${profTab === k}" data-act="prof-tab" data-t="${k}">${l}</button>`).join('')}</div>
@@ -915,6 +975,10 @@ document.addEventListener('click', async (e) => {
     case 'news-mute': toggleNewsSound(); break;
     case 'clip-sound': toggleClipSound(); break;
     case 'clip-play': toggleClipPlay(); break;
+    case 'report-post': openReport({ post_id: id }); break;
+    case 'report-profile': openReport({ profile_id: el.dataset.uid }); break;
+    case 'block': toggleBlock(el.dataset.uid); break;
+    case 'delete-account': openDeleteAccount(); break;
     case 'ex-tab': ex.tab = el.dataset.t; exSearch(); break;
     case 'ex-clear': { ex.q = ''; const box = $('#exq'); if (box) { box.value = ''; box.focus(); } exSearch(); break; }
     case 'disc-style': disc.style = el.dataset.v; $$('[data-act="disc-style"]').forEach((b) => b.setAttribute('aria-pressed', b === el)); renderDiscGrid(); break;
