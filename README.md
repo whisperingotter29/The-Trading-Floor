@@ -32,6 +32,13 @@ Accounts are created in the sign-up sheet (name, handle, three-letter badge). Po
 - Colors and fonts: `:root` tokens at the top of `styles.css`; empty states and sign-up in `floor.css`
 - Scene timing: the `KF` keyframe table in `landing.js`
 
+## iOS app (Capacitor)
+The website is the single source of truth; the app wraps the same files.
+- `npm install` then `npm run ios:add` creates the Xcode project, `npm run ios:sync` updates it after changes, `npm run ios:open` opens Xcode. Needs a Mac with Xcode and an Apple Developer account for signing.
+- `build-web.mjs` copies the site into `www/` (the Capacitor `webDir`). `www/`, `ios/` and `node_modules/` are gitignored.
+- `native.js` is inert in a browser. Inside the app it sets the status bar, hides the splash, routes the back gesture through app history, opens outside links in the system browser, and exposes `tfPickPhoto`, `tfShare` and `tfTap`.
+- Bundle id `app.thetradingfloor.ios`.
+
 ## Before a public launch
 - Enable the Google provider in Supabase Auth and add the site URL + redirect URLs.
 - Add custom SMTP (Resend/SendGrid) — the built-in email sender is rate limited and testing-only.

@@ -1,0 +1,20 @@
+{
+  "appId": "app.thetradingfloor.ios",
+  "appName": "The Trading Floor",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#07140fff",
+    "limitsNavigationsToAppBoundDomains": false,
+    "preferredContentMode": "mobile"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#07140f",
+      "showSpinner": false
+    },
+    "PushNotifications": { "presentationOptions": ["badge", "sound", "alert"] },
+    "Keyboard": { "resize": "native" }
+  }
+}

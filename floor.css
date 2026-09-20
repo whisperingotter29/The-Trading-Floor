@@ -259,3 +259,19 @@ a.ncard:hover .nlink { color: var(--ink); }
 .post-h .ib[data-act="report-post"] svg { stroke: var(--muted); }
 .post-h .ib[data-act="report-post"]:hover svg { stroke: var(--ink); }
 .prof .row .btn svg { width: 14px; height: 14px; margin-right: 6px; }
+
+
+/* ============ RUNNING AS AN iOS APP ============ */
+/* Phones draw under the notch and the home indicator, so keep the chrome clear
+   of both. These do nothing in a browser, where the insets are zero. */
+html.is-native, html.is-native body { overscroll-behavior-y: none; }
+html.is-native .topbar { padding-top: env(safe-area-inset-top, 0px); height: calc(56px + env(safe-area-inset-top, 0px)); }
+html.is-native .tabbar { padding-bottom: env(safe-area-inset-bottom, 0px); height: calc(60px + env(safe-area-inset-bottom, 0px)); }
+html.is-native .rail { padding-top: env(safe-area-inset-top, 0px); }
+html.is-native .main { padding-bottom: env(safe-area-inset-bottom, 0px); }
+html.is-native .newswrap { height: calc(100vh - 116px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+html.is-native .reels { height: calc(100vh - 116px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+html.is-native .modal { padding-top: calc(20px + env(safe-area-inset-top, 0px)); padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+/* no text selection or long-press callouts on chrome, like a real app */
+html.is-native .rail, html.is-native .tabbar, html.is-native .topbar, html.is-native .btn, html.is-native .chip {
+  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
