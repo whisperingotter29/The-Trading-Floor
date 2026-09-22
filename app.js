@@ -15,6 +15,8 @@ const I = {
   floor: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v4M6 17v4M12 2v5M12 17v5M18 5v4M18 15v4"/><rect x="4" y="7" width="4" height="10"/><rect x="10" y="7" width="4" height="10"/><rect x="16" y="9" width="4" height="6"/></svg>',
   replay: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="2" width="14" height="20"/><path d="M10 9l5 3-5 3z"/></svg>',
   upload: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>',
+  share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6"/></svg>',
+  camera: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
   flag: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
   block: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/></svg>',
   news: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h13v14H4zM17 9h3v8a2 2 0 0 1-3 0V9z"/><path d="M7 8h7M7 11h7M7 14h4"/></svg>',
@@ -171,6 +173,33 @@ function openProfileSetup({ edit = false } = {}) {
   setTimeout(() => $('#suName')?.focus(), 30);
 }
 
+/* ============ SHARE, NATIVE PHOTOS, PUSH ============ */
+const SITE = 'https://the-trading-floor-green.vercel.app/';
+async function sharePost(id) {
+  const p = POSTS.get(id); if (!p) return;
+  const url = `${SITE}#/p/${encodeURIComponent(id)}`;
+  const title = `${p.handle} on The Trading Floor`;
+  const text = `${p.tk.side === 'long' ? 'Long' : 'Short'} ${p.sym}, ${money(p.tk.pnl)}${p.caption ? ': ' + p.caption.slice(0, 80) : ''}`;
+  if (window.TF_NATIVE && window.tfShare && await window.tfShare({ title, text, url })) return;
+  if (navigator.share) { try { await navigator.share({ title, text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (e) { prompt('Copy this link', url); }
+}
+/* the composer gets real camera and library buttons inside the app */
+async function nativePhoto(fromCamera) {
+  if (!window.tfPickPhoto) return;
+  const f = await window.tfPickPhoto(fromCamera);
+  if (f) cmpFile(f);
+}
+/* ask for notifications once per install, only after someone has an account */
+let _pushAsked = false;
+function maybeEnablePush() {
+  if (_pushAsked || !window.TF_NATIVE || !ME || !window.tfEnablePush) return;
+  _pushAsked = true;
+  if (localStorage.getItem('tf_push_asked') === '1') { window.tfEnablePush(); return; }
+  localStorage.setItem('tf_push_asked', '1');
+  setTimeout(() => window.tfEnablePush(), 1500);
+}
+
 /* ============ REPORTING AND BLOCKING ============ */
 const REASONS = [['spam', 'Spam or misleading'], ['harassment', 'Harassment or bullying'], ['hate', 'Hate speech'],
   ['sexual', 'Sexual content'], ['violence', 'Violence'], ['scam', 'Scam, signals or solicitation'],
@@ -255,6 +284,7 @@ function postHTML(p) {
     <div class="acts">
       <button class="act" data-act="like" data-id="${p.id}" aria-pressed="${liked}" aria-label="Like">${I.heart}<span>${compact(p.likes)}</span></button>
       <button class="act" data-act="focus-cmt" data-id="${p.id}" aria-label="Comment">${I.comment}<span>${p.commentCount}</span></button>
+      <button class="act" data-act="share-post" data-id="${p.id}" aria-label="Share">${I.share}</button>
       <button class="act save" data-act="save" data-id="${p.id}" aria-pressed="${saved}" aria-label="Save">${I.save}</button>
     </div>
     ${ticketStrip(p)}
@@ -801,7 +831,8 @@ async function openComposer() {
   const mine = [...mineS, ...followedS.filter((s) => s.user_id !== ME.id)];
   openModal(`<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="cmpH"><header><h2 id="cmpH">Post a trade</h2><button class="ib" data-act="close" aria-label="Close">${I.x}</button></header>
     <div class="compose"><div class="left">
-      <div class="drop" id="drop"><div id="dropTxt">${I.upload.replace('<svg', '<svg class="drop-ic"')}<strong>Upload a screenshot or screen recording</strong>PNG, JPG, GIF, WebP, MP4, MOV or WebM, up to 50 MB. Drag it here or<br><label class="btn btn-line btn-sm" style="margin-top:14px">Choose file<input type="file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/quicktime,video/webm" id="cmpFile" class="sr"></label></div></div>
+      <div class="drop" id="drop"><div id="dropTxt">${I.upload.replace('<svg', '<svg class="drop-ic"')}<strong>Upload a screenshot or screen recording</strong>PNG, JPG, GIF, WebP, MP4, MOV or WebM, up to 50 MB. Drag it here or<br><label class="btn btn-line btn-sm" style="margin-top:14px">${window.TF_NATIVE ? 'Choose video or file' : 'Choose file'}<input type="file" accept="image/png,image/jpeg,image/gif,image/webp,video/mp4,video/quicktime,video/webm" id="cmpFile" class="sr"></label>
+      ${window.TF_NATIVE ? `<div class="native-pick"><button type="button" class="btn btn-line btn-sm" data-act="native-camera">${I.camera}Camera</button><button type="button" class="btn btn-line btn-sm" data-act="native-photos">${I.upload}Photos</button></div>` : ''}</div></div>
       <div class="drop-acts"><button class="btn btn-line btn-sm" data-act="cmp-clear" id="cmpClear" hidden>Remove file</button></div>
     </div>
     <div class="right">
@@ -955,7 +986,7 @@ document.addEventListener('click', async (e) => {
     case 'cmp-post': cmpPost(); break;
     case 'cmp-clear': if (cmp.file) URL.revokeObjectURL(cmp.file); cmp.file = null; cmp.fileObj = null; cmp.ftype = null; $('#cmpFile').value = ''; cmpUpdate(); break;
     case 'like': {
-      if (!need()) break; const on = !state.liked.has(id); on ? state.liked.add(id) : state.liked.delete(id);
+      if (!need()) break; const on = !state.liked.has(id); on ? state.liked.add(id) : state.liked.delete(id); if (on && window.tfTap) window.tfTap();
       $$(`[data-act="like"][data-id="${id}"]`).forEach((b) => b.setAttribute('aria-pressed', on)); bump(`[data-act="like"][data-id="${id}"]`, on ? 1 : -1);
       const m = await DB.setLike(id, on); if (m) { toast(m); on ? state.liked.delete(id) : state.liked.add(id); $$(`[data-act="like"][data-id="${id}"]`).forEach((b) => b.setAttribute('aria-pressed', !on)); bump(`[data-act="like"][data-id="${id}"]`, on ? -1 : 1); }
       break; }
@@ -976,6 +1007,9 @@ document.addEventListener('click', async (e) => {
     case 'clip-sound': toggleClipSound(); break;
     case 'clip-play': toggleClipPlay(); break;
     case 'report-post': openReport({ post_id: id }); break;
+    case 'share-post': sharePost(id); break;
+    case 'native-camera': nativePhoto(true); break;
+    case 'native-photos': nativePhoto(false); break;
     case 'report-profile': openReport({ profile_id: el.dataset.uid }); break;
     case 'block': toggleBlock(el.dataset.uid); break;
     case 'delete-account': openDeleteAccount(); break;
@@ -1045,7 +1079,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.
 /* ============ ROUTER ============ */
 let lastRoute = null, _tok = 0;
 function parseHash() { const h = location.hash.replace(/^#/, '') || '/'; const [path, qs] = h.split('?'); return { parts: path.split('/').filter(Boolean), params: new URLSearchParams(qs || '') }; }
-const ACTIVE = { floor: 'floor', replays: 'replays', news: 'news', explore: 'explore', discover: 'explore', s: 'discover', u: 'discover', me: 'me', builder: 'builder' };
+const ACTIVE = { p: 'floor', floor: 'floor', replays: 'replays', news: 'news', explore: 'explore', discover: 'explore', s: 'discover', u: 'discover', me: 'me', builder: 'builder' };
 async function render(keepScroll = false) {
   const tok = ++_tok; const y = scrollY; const { parts, params } = parseHash(); const r = parts[0] || '';
   destroyReplays(); destroyMedia(); if (_moreIO) _moreIO.disconnect(); if (_newsIO) _newsIO.disconnect(); destroyReels(); stopClips(); Landing.destroy(); POSTS.clear();
@@ -1057,6 +1091,7 @@ async function render(keepScroll = false) {
     if (r === 'floor') html = await feedView();
     else if (r === 'news') html = await newsView();
     else if (r === 'explore') html = await exploreView();
+    else if (r === 'p') { html = await feedView(); setTimeout(() => parts[1] && openPostModal(decodeURIComponent(parts[1])), 60); }
     else if (r === 'replays') html = await replaysView();
     else if (r === 'discover') html = await discoverView();
     else if (r === 's') html = await strategyView(parts[1]);
@@ -1072,6 +1107,7 @@ async function render(keepScroll = false) {
   if (r === 'builder') renderBuilder();
   if (r === 'floor') watchFeedMore();
   if (r === 'floor' || r === 'replays') watchClips();
+  maybeEnablePush();
   if (r === 'news') { watchNewsMore(); if (news.tab === 'video') watchReels(); }
   hydrateMedia(app);
   window.scrollTo(0, keepScroll ? y : 0);

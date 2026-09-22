@@ -70,7 +70,10 @@ const DB = {
     const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
     return error ? 'That code did not work. Check it, or request a new email.' : null;
   },
-  async signOut() { await sb.auth.signOut(); SESSION = null; await DB.loadMe(); },
+  async signOut() {
+    try { await DB.dropPushToken(window.tfPushToken); } catch (e) {}
+    await sb.auth.signOut(); SESSION = null; await DB.loadMe();
+  },
 
   /* ---------- profiles ---------- */
   async createProfile(p) {
@@ -267,6 +270,18 @@ const DB = {
     if (error) return dbError(error, 'Could not delete the account.');
     await sb.auth.signOut(); SESSION = null; await DB.loadMe();
     return null;
+  },
+
+  /* ---------- push notifications ---------- */
+  /* A phone that allows notifications hands us a token; we keep one row per
+     device so a follow or comment can be delivered to it later. */
+  async savePushToken(token, platform = 'ios') {
+    if (!uid() || !token) return;
+    await sb.from('push_tokens').upsert({ token, user_id: uid(), platform, last_seen: new Date().toISOString() }, { onConflict: 'token' });
+  },
+  async dropPushToken(token) {
+    if (!token) return;
+    await sb.from('push_tokens').delete().eq('token', token);
   },
 
   /* ---------- creator clips ---------- */

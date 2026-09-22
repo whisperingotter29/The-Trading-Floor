@@ -61,4 +61,32 @@
 
   /* a little feedback on likes and posts, the way native apps do */
   window.tfTap = () => { try { P.Haptics?.impact({ style: 'LIGHT' }); } catch (e) {} };
+
+  /* Push: ask once, after someone has signed in and has a reason to want it.
+     The token goes to the database; tapping a notification opens its screen. */
+  let pushWired = false;
+  window.tfEnablePush = async () => {
+    const PN = P.PushNotifications; if (!PN) return false;
+    try {
+      if (!pushWired) {
+        pushWired = true;
+        PN.addListener('registration', ({ value }) => {
+          window.tfPushToken = value;
+          /* DB is a top-level const in data.js, which is a global binding but not a
+             property of window, so check the name itself rather than window.DB */
+          try { if (typeof DB !== 'undefined') DB.savePushToken(value, 'ios'); } catch (e) {}
+        });
+        PN.addListener('registrationError', () => {});
+        PN.addListener('pushNotificationActionPerformed', ({ notification }) => {
+          const to = notification?.data?.url;
+          if (to && to.startsWith('#/')) location.hash = to;
+        });
+      }
+      let perm = await PN.checkPermissions();
+      if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') perm = await PN.requestPermissions();
+      if (perm.receive !== 'granted') return false;
+      await PN.register();
+      return true;
+    } catch (e) { return false; }
+  };
 })();

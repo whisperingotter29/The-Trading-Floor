@@ -275,3 +275,9 @@ html.is-native .modal { padding-top: calc(20px + env(safe-area-inset-top, 0px));
 /* no text selection or long-press callouts on chrome, like a real app */
 html.is-native .rail, html.is-native .tabbar, html.is-native .topbar, html.is-native .btn, html.is-native .chip {
   -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+
+/* native photo buttons in the composer, app only */
+.native-pick { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+.native-pick .btn { gap: 6px; }
+.native-pick .btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+.acts .act[data-act="share-post"] svg { stroke: currentColor; fill: none; }
