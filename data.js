@@ -55,8 +55,18 @@ const DB = {
       await DB.loadBlocks();
     }
   },
-  redirectTo() { return location.origin + location.pathname; },
+  /* Inside the iOS app, sign-in pages can't load in the app's own webview
+     (Google refuses embedded browsers), so the app opens the system browser
+     and Supabase sends the person back through the app's own link scheme. */
+  APP_CALLBACK: 'app.thetradingfloor.ios://auth-callback',
+  redirectTo() { return window.TF_NATIVE ? DB.APP_CALLBACK : location.origin + location.pathname; },
   async signInGoogle() {
+    if (window.TF_NATIVE && window.tfOpenAuth) {
+      const { data, error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: DB.APP_CALLBACK, skipBrowserRedirect: true } });
+      if (error) return /provider is not enabled|Unsupported provider/i.test(error.message) ? 'Google sign-in is not switched on yet. Use email for now.' : dbError(error);
+      await window.tfOpenAuth(data.url);
+      return null;
+    }
     const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: DB.redirectTo() } });
     return error ? (/provider is not enabled|Unsupported provider/i.test(error.message) ? 'Google sign-in is not switched on yet. Use email for now.' : dbError(error)) : null;
   },
@@ -69,6 +79,23 @@ const DB = {
   async verifyEmailCode(email, token) {
     const { error } = await sb.auth.verifyOtp({ email, token, type: 'email' });
     return error ? 'That code did not work. Check it, or request a new email.' : null;
+  },
+  /* called when the system browser hands the app back its callback link */
+  async finishAppSignIn(url) {
+    try {
+      const u = new URL(url.replace('app.thetradingfloor.ios://', 'https://callback/'));
+      const q = new URLSearchParams(u.search); const h = new URLSearchParams(u.hash.replace(/^#/, ''));
+      const err = q.get('error_description') || h.get('error_description');
+      if (err) return err.replace(/\+/g, ' ');
+      const code = q.get('code');
+      if (code) { const { error } = await sb.auth.exchangeCodeForSession(code); if (error) return dbError(error, 'Sign-in did not finish. Try again.'); }
+      else if (h.get('access_token')) {
+        const { error } = await sb.auth.setSession({ access_token: h.get('access_token'), refresh_token: h.get('refresh_token') });
+        if (error) return dbError(error, 'Sign-in did not finish. Try again.');
+      } else return 'Sign-in did not finish. Try again.';
+      const { data } = await sb.auth.getSession(); SESSION = data.session; await DB.loadMe();
+      return null;
+    } catch (e) { return 'Sign-in did not finish. Try again.'; }
   },
   async signOut() {
     try { await DB.dropPushToken(window.tfPushToken); } catch (e) {}

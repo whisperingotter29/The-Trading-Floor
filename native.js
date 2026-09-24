@@ -38,6 +38,21 @@
     catch (err) { window.open(a.href, '_blank'); }
   });
 
+  /* Sign-in runs in the system browser; it comes back through the app's link
+     scheme, which reopens the app and lands here. */
+  window.tfOpenAuth = async (url) => {
+    try { await P.Browser?.open({ url, presentationStyle: 'popover' }); } catch (e) { location.href = url; }
+  };
+  try {
+    P.App?.addListener('appUrlOpen', async ({ url }) => {
+      if (!url || !url.startsWith('app.thetradingfloor.ios://')) return;
+      try { await P.Browser?.close(); } catch (e) {}
+      if (typeof DB === 'undefined') return;
+      const msg = await DB.finishAppSignIn(url);
+      window.dispatchEvent(new CustomEvent('tf:app-signin', { detail: msg }));
+    });
+  } catch (e) {}
+
   /* share sheet, used by the share button when running natively */
   window.tfShare = async ({ title, text, url }) => {
     try { await P.Share?.share({ title, text, url, dialogTitle: 'Share' }); return true; } catch (e) { return false; }

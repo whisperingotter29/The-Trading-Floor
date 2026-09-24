@@ -1123,5 +1123,12 @@ function go() {
   } else render();
 }
 addEventListener('hashchange', go);
+/* the iOS app finishes sign-in after returning from the system browser */
+addEventListener('tf:app-signin', async (e) => {
+  if (e.detail) { toast(e.detail); return; }
+  closeModal();
+  if (SESSION && !ME) { openProfileSetup(); return; }
+  if (ME) { toast('Signed in as @' + ME.handle); render(true); resume(); }
+});
 /* re-render when someone signs in or out in this tab or another */
 addEventListener('tf:auth', () => { if ((location.hash || '#/') !== '#/') render(true); });
