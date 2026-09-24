@@ -281,3 +281,13 @@ html.is-native .rail, html.is-native .tabbar, html.is-native .topbar, html.is-na
 .native-pick .btn { gap: 6px; }
 .native-pick .btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; }
 .acts .act[data-act="share-post"] svg { stroke: currentColor; fill: none; }
+
+/* clip comments sheet */
+.clip-head { border-bottom: 1px solid var(--line); padding-bottom: 14px; margin-bottom: 14px; }
+.clip-head strong { font-size: 15px; }
+.clip-head p { color: var(--muted); font-size: 14px; margin-top: 4px; line-height: 1.4; }
+.clip-head .clip-link { margin-top: 10px; }
+.clip-post .acts { padding: 12px 16px 0; }
+.reel-acts .act[aria-pressed="true"] svg { stroke: var(--floor); fill: var(--floor); }
+.acts .act[data-act="clip-like"][aria-pressed="true"] svg { stroke: var(--floor); fill: var(--floor); }
+.acts .act[data-act="clip-save"][aria-pressed="true"] svg { stroke: var(--floor); fill: var(--floor); }

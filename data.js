@@ -13,7 +13,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
 let SESSION = null; // Supabase auth session (signed in or not)
 let ME = null;      // the signed-in person's profile row, null until they set one up
 
-const state = { liked: new Set(), saved: new Set(), following: new Set(), followedStrategies: new Set(), blocked: new Set(), draft: null };
+const state = { liked: new Set(), saved: new Set(), clipLiked: new Set(), clipSaved: new Set(), following: new Set(), followedStrategies: new Set(), blocked: new Set(), draft: null };
 
 function dbError(error, fallback) {
   if (!error) return null;
@@ -41,7 +41,7 @@ const DB = {
     });
   },
   async loadMe() {
-    ME = null; state.liked.clear(); state.saved.clear(); state.following.clear(); state.followedStrategies.clear(); state.blocked.clear();
+    ME = null; state.liked.clear(); state.saved.clear(); state.clipLiked.clear(); state.clipSaved.clear(); state.following.clear(); state.followedStrategies.clear(); state.blocked.clear();
     if (!uid()) return;
     const { data } = await sb.from('profiles_stats').select('*').eq('id', uid()).maybeSingle();
     ME = data || null;
@@ -316,13 +316,53 @@ const DB = {
      They are shown as embedded YouTube videos credited to the channel,
      never as posts by a trader on this site. */
   async creatorClips({ shortsOnly = false, limit = 20, before } = {}) {
-    let q = sb.from('news_items').select('*').eq('category', 'creator').eq('kind', 'video')
-      .order('published_at', { ascending: false }).limit(limit);
+    let q = sb.from('clips_feed').select('*').order('published_at', { ascending: false }).limit(limit);
     if (shortsOnly) q = q.eq('is_short', true);
     if (before) q = q.lt('published_at', before);
     const { data, error } = await q;
     if (error) return { rows: [], error: dbError(error, 'Could not load creator clips.') };
-    return { rows: (data || []).map((r) => ({ ...r, t: Date.parse(r.published_at), creator: true })) };
+    const rows = (data || []).map((r) => ({ ...r, t: Date.parse(r.published_at), creator: true,
+      likes: r.like_count || 0, commentCount: r.comment_count || 0, comments: [] }));
+    await DB.decorateClips(rows);
+    return { rows };
+  },
+  /* my likes and saves, plus the last couple of comments, for a batch of clips */
+  async decorateClips(rows) {
+    if (!rows.length) return;
+    const ids = rows.map((r) => r.id);
+    const jobs = [sb.from('clip_comments_list').select('*').in('clip_id', ids).order('created_at', { ascending: true }).limit(ids.length * 8)];
+    if (ME) {
+      jobs.push(sb.from('clip_likes').select('clip_id').eq('user_id', uid()).in('clip_id', ids));
+      jobs.push(sb.from('clip_saves').select('clip_id').eq('user_id', uid()).in('clip_id', ids));
+    }
+    const [c, l, s] = await Promise.all(jobs);
+    const by = {}; (c.data || []).forEach((x) => (by[x.clip_id] = by[x.clip_id] || []).push(x));
+    rows.forEach((r) => { r.comments = (by[r.id] || []).slice(-2); });
+    (l?.data || []).forEach((x) => state.clipLiked.add(x.clip_id));
+    (s?.data || []).forEach((x) => state.clipSaved.add(x.clip_id));
+  },
+  async clip(id) {
+    const { data } = await sb.from('clips_feed').select('*').eq('id', id).maybeSingle();
+    if (!data) return null;
+    const row = { ...data, t: Date.parse(data.published_at), creator: true, likes: data.like_count || 0, commentCount: data.comment_count || 0, comments: [] };
+    const { data: cs } = await sb.from('clip_comments_list').select('*').eq('clip_id', id).order('created_at', { ascending: true }).limit(200);
+    row.comments = cs || [];
+    await DB.decorateClips([]);
+    return row;
+  },
+  async setClipLike(clipId, on) {
+    const q = on ? sb.from('clip_likes').insert({ clip_id: clipId, user_id: uid() })
+                 : sb.from('clip_likes').delete().eq('clip_id', clipId).eq('user_id', uid());
+    const { error } = await q; return error && error.code !== '23505' ? dbError(error) : null;
+  },
+  async setClipSave(clipId, on) {
+    const q = on ? sb.from('clip_saves').insert({ clip_id: clipId, user_id: uid() })
+                 : sb.from('clip_saves').delete().eq('clip_id', clipId).eq('user_id', uid());
+    const { error } = await q; return error && error.code !== '23505' ? dbError(error) : null;
+  },
+  async addClipComment(clipId, body) {
+    const { error } = await sb.from('clip_comments').insert({ clip_id: clipId, user_id: uid(), body });
+    return error ? dbError(error, 'Could not post the comment.') : null;
   },
 
   /* ---------- news ---------- */

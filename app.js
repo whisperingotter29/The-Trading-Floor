@@ -173,6 +173,53 @@ function openProfileSetup({ edit = false } = {}) {
   setTimeout(() => $('#suName')?.focus(), 30);
 }
 
+/* ============ CLIP ACTIONS ============ */
+/* Likes, saves and comments on a creator clip live on this site; they are not
+   sent to YouTube. Sharing sends people to the creator's video. */
+async function clipLike(id) {
+  if (!need(() => clipLike(id))) return;
+  const on = !state.clipLiked.has(id);
+  on ? state.clipLiked.add(id) : state.clipLiked.delete(id);
+  $$(`[data-act="clip-like"][data-id="${id}"]`).forEach((b) => b.setAttribute('aria-pressed', on));
+  bump(`[data-act="clip-like"][data-id="${id}"]`, on ? 1 : -1);
+  if (on && window.tfTap) window.tfTap();
+  const msg = await DB.setClipLike(id, on);
+  if (msg) { toast(msg); on ? state.clipLiked.delete(id) : state.clipLiked.add(id);
+    $$(`[data-act="clip-like"][data-id="${id}"]`).forEach((b) => b.setAttribute('aria-pressed', !on));
+    bump(`[data-act="clip-like"][data-id="${id}"]`, on ? -1 : 1); }
+}
+async function clipSave(id) {
+  if (!need(() => clipSave(id))) return;
+  const on = !state.clipSaved.has(id);
+  on ? state.clipSaved.add(id) : state.clipSaved.delete(id);
+  $$(`[data-act="clip-save"][data-id="${id}"]`).forEach((b) => b.setAttribute('aria-pressed', on));
+  const msg = await DB.setClipSave(id, on);
+  if (msg) { toast(msg); on ? state.clipSaved.delete(id) : state.clipSaved.add(id);
+    $$(`[data-act="clip-save"][data-id="${id}"]`).forEach((b) => b.setAttribute('aria-pressed', !on)); }
+  else toast(on ? 'Saved' : 'Removed from saved');
+}
+async function clipShare(id) {
+  const c = CLIPS.get(id); if (!c) return;
+  const url = `https://www.youtube.com/watch?v=${c.video_id}`;
+  const title = `${c.source} on YouTube`;
+  if (window.TF_NATIVE && window.tfShare && await window.tfShare({ title, text: c.title, url })) return;
+  if (navigator.share) { try { await navigator.share({ title, text: c.title, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (e) { prompt('Copy this link', url); }
+}
+async function openClip(id) {
+  openModal(`<div class="sheet" role="dialog" aria-modal="true" aria-label="Clip" style="width:min(560px,100%)">
+    <header><h2>Comments</h2><button class="ib" data-act="close" aria-label="Close">${I.x}</button></header>
+    <div style="padding:20px" id="clipBody">${loadingBlock()}</div></div>`);
+  const c = await DB.clip(id); const body = $('#clipBody'); if (!body) return;
+  if (!c) { body.innerHTML = '<div class="empty">This clip is no longer here.</div>'; return; }
+  CLIPS.set(c.id, c);
+  const cm = c.comments.map((x) => `<div><a href="#/u/${esc(x.handle)}">${esc(x.handle)}</a>${esc(x.body)}</div>`).join('');
+  body.innerHTML = `<div class="clip-head"><strong>${esc(c.source)}</strong>${clipBadge()}<p>${esc(c.title)}</p>
+      <a class="clip-link" href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">Watch on ${esc(c.source)}'s channel${I.ext}</a></div>
+    <div class="cmts" id="clipCmts">${cm || '<div class="empty" style="padding:20px 0">No comments yet. Say something about this clip.</div>'}</div>
+    <form class="cmt-form" data-clip="${esc(c.id)}"><input class="input" placeholder="Add a comment" maxlength="280" aria-label="Add a comment"><button class="btn btn-line btn-sm">Post</button></form>`;
+}
+
 /* ============ SHARE, NATIVE PHOTOS, PUSH ============ */
 const SITE = 'https://the-trading-floor-green.vercel.app/';
 async function sharePost(id) {
@@ -328,9 +375,9 @@ const errorBlock = (msg) => emptyBlock('Could not load this.', esc(msg), `<butto
 let feedFilter = 'all', feedCursor = null, feedDone = false;
 async function feedView() {
   const f = feedFilter;
-  const [{ rows, error }, tapeRes, rising, clipRes] = await Promise.all([
+  /* The Floor is only what people here have posted. Creator clips live in Replays. */
+  const [{ rows, error }, tapeRes, rising] = await Promise.all([
     DB.posts({ filter: f }), DB.posts({ limit: 10 }), DB.strategies({ limit: 4 }),
-    f === 'all' || f === 'videos' ? DB.creatorClips({ shortsOnly: true, limit: 8 }) : { rows: [] },
   ]);
   if (error) return shell('floor', `<div class="page">${errorBlock(error)}</div>`);
   feedCursor = rows.length ? rows[rows.length - 1].created_at : null; feedDone = rows.length < 20;
@@ -339,11 +386,10 @@ async function feedView() {
     .map(([k, l]) => `<button class="chip" data-act="feed-filter" data-f="${k}" aria-pressed="${f === k}">${l}</button>`).join('');
   const tapeLi = tape.map((p) => `<li>${badge(p, 28)}<span><b>${esc(p.handle)}</b> ${p.tk.side} ${esc(p.sym)}</span><i class="${p.tk.pnl > 0 ? 'w' : ''}">${money(p.tk.pnl)}</i></li>`).join('');
   const risingHTML = rising.map((s) => `<a class="mini-strat" href="#/s/${s.id}">${badge(s, 34)}<div><strong>${esc(s.title)}</strong><small>${esc(s.market)}, ${s.steps.length} steps, ${compact(s.followers)} following</small></div></a>`).join('');
-  const none = !tape.length && !(clipRes.rows || []).length;
+  const none = !tape.length;
   const main = none
     ? emptyBlock('The floor is quiet.', 'Nobody has posted a trade yet. Upload a screenshot or a screen recording of a trade you took and yours will be the first thing everyone sees.', `<button class="btn btn-floor" data-act="compose">${I.plus}Post the first trade</button>`)
-    : rows.length ? mixFeed(rows, clipRes.rows || []) + (feedDone ? '' : `<div class="feed-more" id="feedMore">${loadingBlock()}</div>`)
-      : (clipRes.rows || []).length ? `<div class="feed-note">Nothing posted here yet. While the floor fills up, here is what traders are putting out on YouTube.</div>` + (clipRes.rows || []).map(clipPostHTML).join('')
+    : rows.length ? rows.map(postHTML).join('') + (feedDone ? '' : `<div class="feed-more" id="feedMore">${loadingBlock()}</div>`)
       : `<div class="empty">${f === 'following' ? 'No posts from people you follow yet.' : 'No posts match this filter yet.'}</div>`;
   return shell('floor', `<div class="cols"><section aria-label="Feed">
       ${none ? '' : `<div class="feed-tabs" role="group" aria-label="Filter feed">${chips}</div>`}
@@ -354,13 +400,6 @@ async function feedView() {
       <div><h3>Strategies</h3>${risingHTML || '<p class="side-empty">No strategies have been published yet.</p>'}<a class="btn btn-line btn-sm" style="margin-top:14px" href="#/${rising.length ? 'discover' : 'builder'}">${rising.length ? 'Discover strategies' : 'Build the first one'}</a></div>
     </aside></div>`);
 }
-/* user posts come first; a creator clip drops in after every fourth one */
-function mixFeed(posts, clips) {
-  const out = []; let ci = 0;
-  posts.forEach((p, i) => { out.push(postHTML(p)); if ((i + 1) % 4 === 0 && clips[ci]) out.push(clipPostHTML(clips[ci++])); });
-  return out.join('');
-}
-
 /* infinite scroll: load 20 more when the sentinel comes into view */
 let _moreIO, _loadingMore = false;
 function watchFeedMore() {
@@ -385,6 +424,7 @@ function watchFeedMore() {
    channel and link back to it: they are not posts by anyone on this site,
    and they carry no trade result. The player loads only once tapped. */
 function clipBadge() { return `<span class="yt-tag">YouTube</span>`; }
+const CLIPS = new Map(); // clips on screen, so likes and comments can find them
 /* Sound is remembered: browsers only allow autoplay while muted, so the first
    clip of a first visit is silent. After one tap it stays on from then on. */
 let clipsMuted = localStorage.getItem('tf_clip_sound') !== 'on';
@@ -396,6 +436,7 @@ function clipCmd(frame, func) {
   try { frame.contentWindow.postMessage(JSON.stringify({ event: 'command', func, args: [] }), '*'); } catch (e) {}
 }
 function clipReelHTML(c) {
+  CLIPS.set(c.id, c);
   return `<section class="reel clip-reel" data-vid="${esc(c.video_id)}" data-title="${esc(c.title)}">
     <div class="clip-col">
       <div class="clip-stage"><div class="clip-screen">
@@ -404,21 +445,32 @@ function clipReelHTML(c) {
         <p>${esc(c.title)}</p></div>
     </div>
     <div class="reel-acts">
+      <button class="act" data-act="clip-like" data-id="${esc(c.id)}" aria-pressed="${state.clipLiked.has(c.id)}" aria-label="Like">${I.heart}<span>${compact(c.likes || 0)}</span></button>
+      <button class="act" data-act="open-clip" data-id="${esc(c.id)}" aria-label="Comments">${I.comment}<span>${compact(c.commentCount || 0)}</span></button>
+      <button class="act" data-act="clip-share" data-id="${esc(c.id)}" aria-label="Share">${I.share}</button>
+      <button class="act" data-act="clip-save" data-id="${esc(c.id)}" aria-pressed="${state.clipSaved.has(c.id)}" aria-label="Save">${I.save}</button>
       <button class="act" data-act="clip-play" aria-label="Play or pause">${clipsPaused ? I.play : I.pause}<span class="clip-pp">${clipsPaused ? 'Play' : 'Pause'}</span></button>
       <button class="act" data-act="clip-sound" aria-label="Sound on or off">${I.sound}<span class="clip-mute">${clipsMuted ? 'Sound off' : 'Sound on'}</span></button>
       <a class="act" href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer" aria-label="Watch on YouTube">${I.ext}<span>YouTube</span></a>
     </div></section>`;
 }
 function clipPostHTML(c) {
+  CLIPS.set(c.id, c);
   return `<article class="post clip-post" data-clip="${esc(c.video_id)}">
     <div class="post-h"><span class="badge t-board" style="--s:40px" aria-hidden="true">${esc((c.source || '?').slice(0, 3).toUpperCase())}</span>
       <div class="who"><a href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">${esc(c.source)}</a>
         <small>${ago(c.t)} ago${clipBadge()}</small></div></div>
     <div class="media clip-screen clip-tall">
       <img class="clip-poster" src="${esc(c.image_url || '')}" alt="" loading="lazy"></div>
-    <div class="clip-bar"><button class="btn btn-line btn-sm" data-act="clip-play">${clipsPaused ? I.play : I.pause}<span class="clip-pp">${clipsPaused ? 'Play' : 'Pause'}</span></button>
-      <button class="btn btn-line btn-sm" data-act="clip-sound">${I.sound}<span class="clip-mute">${clipsMuted ? 'Sound off' : 'Sound on'}</span></button>
-      <a class="clip-link" href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">Watch on ${esc(c.source)}'s channel${I.ext}</a></div>
+    <div class="acts">
+      <button class="act" data-act="clip-like" data-id="${esc(c.id)}" aria-pressed="${state.clipLiked.has(c.id)}" aria-label="Like">${I.heart}<span>${compact(c.likes || 0)}</span></button>
+      <button class="act" data-act="open-clip" data-id="${esc(c.id)}" aria-label="Comments">${I.comment}<span>${compact(c.commentCount || 0)}</span></button>
+      <button class="act" data-act="clip-share" data-id="${esc(c.id)}" aria-label="Share">${I.share}</button>
+      <button class="act" data-act="clip-save" data-id="${esc(c.id)}" aria-pressed="${state.clipSaved.has(c.id)}" aria-label="Save">${I.save}</button>
+      <span style="flex:1"></span>
+      <button class="act" data-act="clip-sound" aria-label="Sound">${I.sound}<span class="clip-mute">${clipsMuted ? 'Sound off' : 'Sound on'}</span></button>
+    </div>
+    <div class="clip-bar"><a class="clip-link" href="https://www.youtube.com/watch?v=${esc(c.video_id)}" target="_blank" rel="noopener noreferrer">Watch on ${esc(c.source)}'s channel${I.ext}</a></div>
     <p class="caption clip-cap">${esc(c.title)}</p>
   </article>`;
 }
@@ -1005,6 +1057,10 @@ document.addEventListener('click', async (e) => {
     case 'news-src': news.source = el.dataset.v; render(); break;
     case 'news-mute': toggleNewsSound(); break;
     case 'clip-sound': toggleClipSound(); break;
+    case 'clip-like': clipLike(el.dataset.id); break;
+    case 'clip-save': clipSave(el.dataset.id); break;
+    case 'clip-share': clipShare(el.dataset.id); break;
+    case 'open-clip': openClip(el.dataset.id); break;
     case 'clip-play': toggleClipPlay(); break;
     case 'report-post': openReport({ post_id: id }); break;
     case 'share-post': sharePost(id); break;
@@ -1045,6 +1101,19 @@ document.addEventListener('dblclick', (e) => {
   const h = $('.heart', m); if (h && window.gsap && !reduced) gsap.fromTo(h, { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(3)', yoyo: true, repeat: 1, repeatDelay: 0.25 });
 });
 document.addEventListener('submit', async (e) => {
+  const cf = e.target.closest('form.cmt-form[data-clip]');
+  if (cf) {
+    e.preventDefault();
+    const inp = cf.querySelector('input'); const v = inp.value.trim(); if (!v) return;
+    if (!need()) return;
+    inp.disabled = true; const msg = await DB.addClipComment(cf.dataset.clip, v); inp.disabled = false;
+    if (msg) { toast(msg); return; }
+    inp.value = '';
+    $('#clipCmts')?.insertAdjacentHTML('beforeend', `<div><a href="#/u/${esc(ME.handle)}">${esc(ME.handle)}</a>${esc(v)}</div>`);
+    $('#clipCmts .empty')?.remove();
+    bump(`[data-act="open-clip"][data-id="${cf.dataset.clip}"]`, 1);
+    return;
+  }
   const f = e.target.closest('[data-act="comment"]'); if (!f) return; e.preventDefault();
   if (!need()) return;
   const inp = f.querySelector('input'); const v = inp.value.trim(); if (!v) return;
