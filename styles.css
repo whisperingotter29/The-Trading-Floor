@@ -2,6 +2,21 @@
   --board: #07140F; --board-2: #0C1F18; --board-3: #12291F; --line: #1D3A2F;
   --ink: #E6EDE7; --muted: #86998F; --paper: #EFE9D8; --paper-2: #E4DCC6; --paper-rule: #CDC3A8; --paper-ink: #1B1A16;
   --floor: #18A583;
+  /* Green stays the house colour. These are the others, and each one is used
+     for one meaning only, so colour reads as information rather than decoration:
+     red is a losing trade, pink is a like, gold is something you kept, and the
+     rest name the section you are in. */
+  --loss: #E5484D; --loss-deep: #7E1D22;
+  --like: #FF4D6D;
+  --gold: #E8B647;
+  --sky: #4EA8F5;
+  --violet: #A97BF0;
+  --amber: #F0883C;
+  --cyan: #2FC8C0;
+  --lime: #9BD44B;
+  --coral: #FF7A59;
+  /* the section you are looking at tints its headings and its rail marker */
+  --accent: var(--floor);
   --display: "Big Shoulders Display", "Archivo Narrow", "Arial Narrow", sans-serif;
   --stamp: "Big Shoulders Text", "Archivo Narrow", "Arial Narrow", sans-serif;
   --body: "Archivo", "Helvetica Neue", Arial, sans-serif;
@@ -26,9 +41,20 @@ body::after { content: ""; position: fixed; inset: -50%; pointer-events: none; z
 /* ---------- shared atoms ---------- */
 .badge { --s: 40px; width: var(--s); height: var(--s); flex: none; display: grid; place-items: center; font-family: var(--display); font-weight: 900; font-size: calc(var(--s) * .42); letter-spacing: .01em; border-radius: var(--r); line-height: 1; position: relative; }
 .badge::after { content: ""; position: absolute; top: 3px; left: 50%; width: 22%; height: 3px; margin-left: -11%; border-radius: 3px; background: currentColor; opacity: .35; }
+/* Badge colours. Every post and profile carries one, so this is where most of
+   the colour in the app comes from: a feed of different traders looks varied
+   without the interface itself turning into a fruit salad. */
 .badge.t-floor { background: var(--floor); color: var(--paper-ink); }
 .badge.t-paper { background: var(--paper); color: var(--paper-ink); }
 .badge.t-board { background: var(--board-3); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.badge.t-gold { background: var(--gold); color: var(--paper-ink); }
+.badge.t-sky { background: var(--sky); color: #06182B; }
+.badge.t-violet { background: var(--violet); color: #1E0F33; }
+.badge.t-coral { background: var(--coral); color: #331005; }
+.badge.t-amber { background: var(--amber); color: #2B1203; }
+.badge.t-cyan { background: var(--cyan); color: #04231F; }
+.badge.t-lime { background: var(--lime); color: #17250A; }
+.badge.t-crimson { background: var(--loss); color: #2C0508; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 18px; border-radius: var(--r); font-weight: 600; font-size: 14px; transition: transform .2s var(--ease), background .2s; white-space: nowrap; }
 .btn-floor { background: var(--floor); color: var(--paper-ink); }
 .btn-floor:hover { background: #2BC29C; }
@@ -318,8 +344,8 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; min-height:
 .bld-sec { border-top: 1px solid var(--line); padding-top: 18px; display: grid; gap: 12px; }
 .bld-sec > header { display: flex; justify-content: space-between; align-items: center; }
 .bld-sec h2 { font-family: var(--display); font-weight: 800; font-size: 26px; line-height: 1; }
-.themes { display: flex; gap: 8px; }
-.themes button { width: 44px; height: 44px; border-radius: var(--r); box-shadow: inset 0 0 0 1px var(--line); }
+.themes { display: flex; gap: 8px; flex-wrap: wrap; }
+.themes button { width: 36px; height: 36px; flex: none; border-radius: var(--r); box-shadow: inset 0 0 0 1px var(--line); }
 .themes button[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 2px; }
 .stepcard { background: var(--board-2); border: 1px solid var(--line); border-radius: var(--r); }
 .stepcard > header { display: flex; gap: 10px; align-items: center; padding: 10px 10px 10px 12px; }
@@ -420,3 +446,119 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; min-height:
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
+
+/* ---------- settings ---------- */
+.page-narrow { max-width: 680px; }
+.set-head { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+.set-head h1 { font-family: var(--display); font-weight: 900; font-size: clamp(34px, 5vw, 54px); line-height: .9; }
+.set-head .ib { flex: none; }
+.set-head .ib svg { width: 22px; height: 22px; }
+.set-who { display: flex; align-items: center; gap: 14px; padding: 14px; margin-bottom: 22px;
+  background: var(--board-2); border-radius: var(--r); box-shadow: inset 0 0 0 1px var(--line); }
+.set-who div { flex: 1; min-width: 0; display: grid; }
+.set-who strong { font-weight: 600; }
+.set-who small { color: var(--muted); }
+
+.set-list { display: grid; gap: 1px; background: var(--line); border-radius: var(--r); overflow: hidden; }
+.set-row { display: flex; align-items: center; gap: 14px; padding: 15px 16px; background: var(--board-2);
+  transition: background .15s; }
+.set-row:hover { background: var(--board-3); }
+.set-ic { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--r);
+  background: var(--board-3); color: var(--floor); }
+.set-ic svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.set-txt { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.set-txt b { font-weight: 600; }
+.set-txt small { color: var(--muted); font-size: 12.5px; line-height: 1.35; }
+.set-chev { flex: none; color: var(--muted); transform: scaleX(-1); display: grid; }
+.set-chev svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.set-count { flex: none; min-width: 22px; height: 22px; padding: 0 6px; display: grid; place-items: center;
+  border-radius: 11px; background: var(--floor); color: var(--paper-ink); font-size: 12px; font-weight: 700;
+  font-variant-numeric: tabular-nums; }
+.set-h2 { font-family: var(--display); font-weight: 900; font-size: 22px; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--muted); margin: 26px 0 10px; }
+.set-note { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0; padding: 12px 14px;
+  color: var(--muted); font-size: 13px; line-height: 1.45; background: var(--board-2); border-radius: var(--r);
+  box-shadow: inset 0 0 0 1px var(--line); }
+.set-note svg { flex: none; width: 16px; height: 16px; margin-top: 2px; fill: none; stroke: var(--floor); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+/* a switch: a real checkbox, styled, so it stays keyboard reachable */
+.sw { display: flex; align-items: center; gap: 16px; padding: 15px 16px; margin-bottom: 1px; cursor: pointer;
+  background: var(--board-2); border-radius: var(--r); box-shadow: inset 0 0 0 1px var(--line); }
+.sw > span { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.sw b { font-weight: 600; }
+.sw small { color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+.sw input { position: absolute; opacity: 0; width: 0; height: 0; }
+.sw i { flex: none; width: 46px; height: 26px; border-radius: 13px; background: var(--board-3);
+  box-shadow: inset 0 0 0 1px var(--line); position: relative; transition: background .18s var(--ease); }
+.sw i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--muted); transition: transform .18s var(--ease), background .18s; }
+.sw input:checked + i { background: var(--floor); box-shadow: none; }
+.sw input:checked + i::after { transform: translateX(20px); background: var(--paper-ink); }
+.sw input:focus-visible + i { outline: 2px solid var(--floor); outline-offset: 2px; }
+.sw input[disabled] + i { opacity: .5; }
+
+.set-people { display: grid; gap: 1px; background: var(--line); border-radius: var(--r); overflow: hidden; }
+.set-person { display: flex; align-items: center; gap: 12px; padding: 13px 16px; background: var(--board-2); flex-wrap: wrap; }
+.set-person .set-txt a:hover { color: var(--floor); }
+.set-clips { display: grid; gap: 16px; }
+
+.locked { display: grid; justify-items: center; gap: 10px; padding: 64px 24px; text-align: center;
+  border: 1px dashed var(--line); border-radius: var(--r); }
+.locked svg { width: 34px; height: 34px; fill: none; stroke: var(--floor); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.locked h2 { font-family: var(--display); font-weight: 900; font-size: 30px; }
+.locked p { color: var(--muted); max-width: 420px; }
+
+.stamp.hid { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; letter-spacing: .02em;
+  color: var(--muted); border-color: var(--line); transform: none; padding: 5px 8px; }
+.stamp.hid svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cmt-off { display: flex; align-items: center; gap: 8px; padding: 12px 0; color: var(--muted); font-size: 13px; }
+.cmt-off svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* the Settings link on your own profile carries the waiting-requests count */
+.prof .btn .set-count { margin-left: 2px; }
+/* Buttons inside a page were never given an icon size (only .rail, .tabbar and
+   .act were), so an icon in one stretched to the SVG default. */
+.page .btn svg, .empty .btn svg { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- colour by section and by meaning ---------- */
+/* Each section tints its own headings and rail marker. Green remains the
+   primary button colour everywhere, so the app still reads as one place. */
+.shell[data-sec="floor"]    { --accent: var(--floor); }
+.shell[data-sec="replays"]  { --accent: var(--violet); }
+.shell[data-sec="news"]     { --accent: var(--amber); }
+.shell[data-sec="explore"]  { --accent: var(--cyan); }
+.shell[data-sec="builder"]  { --accent: var(--sky); }
+.shell[data-sec="me"]       { --accent: var(--gold); }
+
+.rail nav a[aria-current="page"] { box-shadow: inset 3px 0 0 var(--accent); }
+.rail nav a[aria-current="page"] svg { color: var(--accent); }
+.tabbar a[aria-current="page"] { color: var(--accent); }
+.page-h h1, .set-head h1 { color: var(--ink); }
+.page-h h1::after { content: ""; display: block; width: 64px; height: 4px; margin-top: 10px; background: var(--accent); border-radius: 2px; }
+.side h3, .exrow header h2 { color: var(--accent); }
+.set-ic { color: var(--accent); }
+.set-h2 { color: var(--accent); opacity: .85; }
+
+/* A loss is red. It was the same paper colour as a win, only fainter, which is
+   the one thing a trader should never have to squint at. */
+.stamp.loss { background: var(--loss-deep); color: #FFD7D9; border-color: var(--loss-deep); opacity: 1; }
+.side-tape i { color: var(--loss); }
+.side-tape i.w { color: var(--floor); }
+.side-tape i.q { color: var(--muted); font-size: 12px; }  /* a private result is neither */
+.thumb .r { background: var(--loss-deep); color: #FFD7D9; }   /* a loss */
+/* a win keeps the filled green chip from the rule above; do not restate its
+   colour here or the text ends up green on green */
+.thumb .r.q { background: var(--board); color: var(--muted); font-size: 14px; }
+
+/* Liking is pink and saving is gold, so the two are told apart at a glance. */
+.act[aria-pressed="true"] svg { fill: var(--accent); stroke: var(--accent); }
+.act[data-act="like"][aria-pressed="true"] svg,
+.act[data-act="clip-like"][aria-pressed="true"] svg { fill: var(--like); stroke: var(--like); }
+.act[data-act="save"][aria-pressed="true"] svg,
+.act[data-act="clip-save"][aria-pressed="true"] svg { fill: var(--gold); stroke: var(--gold); }
+.media .heart svg { fill: var(--like); stroke: var(--like); }
+
+/* chips and tabs pick up the section colour when they are the chosen one */
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--paper-ink); box-shadow: none; }
+.tabs [role="tab"][aria-selected="true"] { box-shadow: inset 0 -2px 0 var(--accent); color: var(--ink); }
+.yt-tag { background: var(--violet); color: #1E0F33; }

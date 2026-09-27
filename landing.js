@@ -249,6 +249,7 @@ const Landing = (() => {
   const onLanding = !returning && (location.hash || '#/') === '#/';
   const finish = async () => {
     try { await DB.init(); } catch (e) { console.error(e); }
+    syncMotion();
     if (returning) {
       const back = sessionStorage.getItem(AFTER_KEY) || '#/floor'; sessionStorage.removeItem(AFTER_KEY);
       history.replaceState(null, '', location.pathname + back);

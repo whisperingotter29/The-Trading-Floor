@@ -261,17 +261,21 @@ a.ncard:hover .nlink { color: var(--ink); }
 .prof .row .btn svg { width: 14px; height: 14px; margin-right: 6px; }
 
 
-/* ============ RUNNING AS AN iOS APP ============ */
+/* ============ RUNNING FULL SCREEN ============ */
 /* Phones draw under the notch and the home indicator, so keep the chrome clear
-   of both. These do nothing in a browser, where the insets are zero. */
-html.is-native, html.is-native body { overscroll-behavior-y: none; }
-html.is-native .topbar { padding-top: env(safe-area-inset-top, 0px); height: calc(56px + env(safe-area-inset-top, 0px)); }
-html.is-native .tabbar { padding-bottom: env(safe-area-inset-bottom, 0px); height: calc(60px + env(safe-area-inset-bottom, 0px)); }
-html.is-native .rail { padding-top: env(safe-area-inset-top, 0px); }
-html.is-native .main { padding-bottom: env(safe-area-inset-bottom, 0px); }
-html.is-native .newswrap { height: calc(100vh - 116px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
-html.is-native .reels { height: calc(100vh - 116px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
-html.is-native .modal { padding-top: calc(20px + env(safe-area-inset-top, 0px)); padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+   of both. These do nothing in a browser tab, where the insets are zero.
+   Two ways to get here: the real iOS app (is-native), and the site added to the
+   Home Screen, which is also full screen and has the same insets (is-standalone).
+   Both need this, so both select it. */
+html.is-native, html.is-native body,
+html.is-standalone, html.is-standalone body { overscroll-behavior-y: none; }
+html.is-native .topbar, html.is-standalone .topbar { padding-top: env(safe-area-inset-top, 0px); height: calc(56px + env(safe-area-inset-top, 0px)); }
+html.is-native .tabbar, html.is-standalone .tabbar { padding-bottom: env(safe-area-inset-bottom, 0px); height: calc(60px + env(safe-area-inset-bottom, 0px)); }
+html.is-native .rail, html.is-standalone .rail { padding-top: env(safe-area-inset-top, 0px); }
+html.is-native .main, html.is-standalone .main { padding-bottom: env(safe-area-inset-bottom, 0px); }
+html.is-native .newswrap, html.is-standalone .newswrap { height: calc(100vh - 116px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+html.is-native .reels, html.is-standalone .reels { height: calc(100vh - 116px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+html.is-native .modal, html.is-standalone .modal { padding-top: calc(20px + env(safe-area-inset-top, 0px)); padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 /* no text selection or long-press callouts on chrome, like a real app */
 html.is-native .rail, html.is-native .tabbar, html.is-native .topbar, html.is-native .btn, html.is-native .chip {
   -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }

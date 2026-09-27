@@ -13,7 +13,10 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
 let SESSION = null; // Supabase auth session (signed in or not)
 let ME = null;      // the signed-in person's profile row, null until they set one up
 
-const state = { liked: new Set(), saved: new Set(), clipLiked: new Set(), clipSaved: new Set(), following: new Set(), followedStrategies: new Set(), blocked: new Set(), draft: null };
+/* `following` holds accepted follows only. A follow of a private account sits in
+   `requested` until they approve it, so the button can say "Requested" rather
+   than claiming you are following someone who has not let you in. */
+const state = { liked: new Set(), saved: new Set(), clipLiked: new Set(), clipSaved: new Set(), following: new Set(), requested: new Set(), followedStrategies: new Set(), blocked: new Set(), muted: new Set(), draft: null };
 
 function dbError(error, fallback) {
   if (!error) return null;
@@ -41,18 +44,22 @@ const DB = {
     });
   },
   async loadMe() {
-    ME = null; state.liked.clear(); state.saved.clear(); state.clipLiked.clear(); state.clipSaved.clear(); state.following.clear(); state.followedStrategies.clear(); state.blocked.clear();
+    ME = null; state.liked.clear(); state.saved.clear(); state.clipLiked.clear(); state.clipSaved.clear(); state.following.clear(); state.requested.clear(); state.followedStrategies.clear(); state.blocked.clear(); state.muted.clear();
     if (!uid()) return;
     const { data } = await sb.from('profiles_stats').select('*').eq('id', uid()).maybeSingle();
     ME = data || null;
     if (ME) {
+      /* profiles_stats leaves reduce_motion out, since it is nobody else's
+         business, so it is read from my own row and carried on ME. */
+      const { data: mine } = await sb.from('profiles').select('reduce_motion, notify_likes, notify_comments, notify_follows, notify_news').eq('id', uid()).maybeSingle();
+      if (mine) Object.assign(ME, mine);
       const [f, sf] = await Promise.all([
-        sb.from('follows').select('following_id').eq('follower_id', uid()),
+        sb.from('follows').select('following_id, status').eq('follower_id', uid()),
         sb.from('strategy_follows').select('strategy_id').eq('user_id', uid()),
       ]);
-      (f.data || []).forEach((r) => state.following.add(r.following_id));
+      (f.data || []).forEach((r) => (r.status === 'pending' ? state.requested : state.following).add(r.following_id));
       (sf.data || []).forEach((r) => state.followedStrategies.add(r.strategy_id));
-      await DB.loadBlocks();
+      await Promise.all([DB.loadBlocks(), DB.loadMutes()]);
     }
   },
   /* Inside the iOS app, sign-in pages can't load in the app's own webview
@@ -173,11 +180,18 @@ const DB = {
   /* ---------- posts ---------- */
   norm(r) {
     return { id: r.id, user_id: r.user_id, handle: r.handle, badge: r.badge, tone: r.tone, avatar_path: r.avatar_path, type: r.media_type, path: r.media_path, url: DB.mediaUrl(r.media_path),
-      sym: r.sym, tf: r.tf, session: r.session, tk: { side: r.side, pnl: Number(r.pnl), rr: r.rr == null ? null : Number(r.rr) },
+      sym: r.sym, tf: r.tf, session: r.session,
+      /* pnl comes back null when the trader keeps it private, and null is not
+         zero: it must stay null so nothing prints "$0" for a hidden result. */
+      tk: { side: r.side, pnl: r.pnl == null ? null : Number(r.pnl), rr: r.rr == null ? null : Number(r.rr) },
+      allow_comments: r.allow_comments !== false, show_activity: r.show_activity !== false, is_private: !!r.is_private,
       caption: r.caption, strategy_id: r.strategy_id, likes: r.like_count || 0, commentCount: r.comment_count || 0, comments: [], t: Date.parse(r.created_at), created_at: r.created_at };
   },
-  async posts({ filter = 'all', user_id, strategy_id, video, before, limit = 20 } = {}) {
+  /* `activity` is for the places that put a trade in front of people who did not
+     ask for it, the tape and Explore, which is what "show my activity" governs. */
+  async posts({ filter = 'all', user_id, strategy_id, video, before, activity = false, limit = 20 } = {}) {
     let q = sb.from('posts_feed').select('*').order('created_at', { ascending: false }).limit(limit);
+    if (activity) q = q.eq('show_activity', true);
     if (user_id) q = q.eq('user_id', user_id);
     if (strategy_id) q = q.eq('strategy_id', strategy_id);
     if (video || filter === 'videos') q = q.eq('media_type', 'video');
@@ -188,7 +202,11 @@ const DB = {
     if (before) q = q.lt('created_at', before);
     const { data, error } = await q;
     if (error) return { rows: [], error: dbError(error, 'Could not load posts.') };
-    const rows = data.map(DB.norm);
+    /* A mute clears your feed but does not blank the person's own page, so it is
+       applied to the feed rather than to the view. Asking for one person's posts
+       on purpose (their profile, a strategy) is exempt. */
+    const hideMuted = !user_id && state.muted.size > 0;
+    const rows = (hideMuted ? data.filter((r) => !state.muted.has(r.user_id)) : data).map(DB.norm);
     await DB.decorate(rows);
     return { rows };
   },
@@ -233,10 +251,26 @@ const DB = {
     const { error } = await sb.from('comments').insert({ user_id: uid(), post_id: postId, body });
     return error ? dbError(error, 'Could not post the comment.') : null;
   },
+  /* Whether this becomes a follow or a request is the database's call, not ours:
+     a trigger sets the status from the other person's privacy setting. So we ask
+     for the row back and believe what it says. Returns 'pending' when it went in
+     as a request, so the caller can label the button honestly. */
   async setFollow(userId, on) {
-    const q = on ? sb.from('follows').insert({ follower_id: uid(), following_id: userId }) : sb.from('follows').delete().eq('follower_id', uid()).eq('following_id', userId);
-    const { error } = await q; if (!error) on ? state.following.add(userId) : state.following.delete(userId);
-    return error && error.code !== '23505' ? dbError(error) : null;
+    if (!on) {
+      const { error } = await sb.from('follows').delete().eq('follower_id', uid()).eq('following_id', userId);
+      if (error) return { error: dbError(error) };
+      state.following.delete(userId); state.requested.delete(userId);
+      return { status: null };
+    }
+    const { data, error } = await sb.from('follows')
+      .insert({ follower_id: uid(), following_id: userId }).select('status').maybeSingle();
+    if (error && error.code !== '23505') return { error: dbError(error) };
+    const status = data?.status
+      || (await sb.from('follows').select('status').eq('follower_id', uid()).eq('following_id', userId).maybeSingle()).data?.status
+      || 'accepted';
+    if (status === 'pending') { state.requested.add(userId); state.following.delete(userId); }
+    else { state.following.add(userId); state.requested.delete(userId); }
+    return { status };
   },
 
   /* ---------- search ---------- */
@@ -251,7 +285,7 @@ const DB = {
   },
   async searchPosts(q, { video, limit = 30 } = {}) {
     const s = DB.clean(q);
-    let sel = sb.from('posts_feed').select('*').order('created_at', { ascending: false }).limit(limit);
+    let sel = sb.from('posts_feed').select('*').eq('show_activity', true).order('created_at', { ascending: false }).limit(limit);
     if (video) sel = sel.eq('media_type', 'video');
     if (s) sel = sel.or(`caption.ilike.%${s}%,sym.ilike.%${s}%,handle.ilike.%${s}%,session.ilike.%${s}%`);
     const { data, error } = await sel;
@@ -289,7 +323,12 @@ const DB = {
     const { error } = await q;
     if (error && error.code !== '23505') return dbError(error, 'Could not update the block.');
     on ? state.blocked.add(userId) : state.blocked.delete(userId);
-    if (on) { state.following.delete(userId); await sb.from('follows').delete().eq('follower_id', uid()).eq('following_id', userId); }
+    /* blocking cuts the tie both ways, including a request still waiting */
+    if (on) {
+      state.following.delete(userId); state.requested.delete(userId);
+      await sb.from('follows').delete().eq('follower_id', uid()).eq('following_id', userId);
+      await sb.from('follows').delete().eq('follower_id', userId).eq('following_id', uid());
+    }
     return null;
   },
   async deleteAccount() {
@@ -297,6 +336,93 @@ const DB = {
     if (error) return dbError(error, 'Could not delete the account.');
     await sb.auth.signOut(); SESSION = null; await DB.loadMe();
     return null;
+  },
+
+  /* ---------- settings ---------- */
+  /* Every one of these is enforced in the database too, not just here: a
+     private account is gated by can_view() and the follows policies, comment
+     permissions by the comments policy. Turning a switch off in this screen is
+     not the only thing standing between a stranger and the content. */
+
+  /* profiles_stats deliberately leaves the notification and motion columns out,
+     since they are nobody else's business, so my own settings come from the
+     profiles row itself. */
+  async mySettings() {
+    if (!uid()) return null;
+    const { data } = await sb.from('profiles').select('*').eq('id', uid()).maybeSingle();
+    return data || null;
+  },
+  async setSetting(patch) { return DB.updateProfile(patch); },
+
+  /* Going private does not retroactively withdraw anything: people who already
+     follow you stay accepted. Only new follows have to be approved. */
+  async followRequests() {
+    if (!uid()) return [];
+    const { data } = await sb.from('follow_requests').select('*')
+      .eq('following_id', uid()).order('created_at', { ascending: false });
+    return data || [];
+  },
+  async answerRequest(followerId, accept) {
+    const q = accept
+      ? sb.from('follows').update({ status: 'accepted' }).eq('following_id', uid()).eq('follower_id', followerId)
+      : sb.from('follows').delete().eq('following_id', uid()).eq('follower_id', followerId);
+    const { error } = await q;
+    return error ? dbError(error, 'Could not answer that request.') : null;
+  },
+
+  /* Muting hides someone's posts from your feed without them being told, which
+     is what makes it different from blocking. */
+  async loadMutes() {
+    state.muted.clear();
+    if (!uid()) return;
+    const { data } = await sb.from('mutes').select('muted_id').eq('muter_id', uid());
+    (data || []).forEach((m) => state.muted.add(m.muted_id));
+  },
+  async setMute(userId, on) {
+    const q = on ? sb.from('mutes').insert({ muter_id: uid(), muted_id: userId })
+                 : sb.from('mutes').delete().eq('muter_id', uid()).eq('muted_id', userId);
+    const { error } = await q;
+    if (error && error.code !== '23505') return dbError(error, 'Could not update that.');
+    on ? state.muted.add(userId) : state.muted.delete(userId);
+    return null;
+  },
+  /* for the blocked and muted lists, which hold ids and need the people */
+  async profilesByIds(ids) {
+    if (!ids.length) return [];
+    const { data } = await sb.from('profiles_stats').select('*').in('id', ids);
+    return data || [];
+  },
+
+  async savedPosts({ limit = 60 } = {}) {
+    if (!uid()) return { rows: [] };
+    const { data: s } = await sb.from('saves').select('post_id, created_at').eq('user_id', uid())
+      .order('created_at', { ascending: false }).limit(limit);
+    const ids = (s || []).map((r) => r.post_id);
+    if (!ids.length) return { rows: [] };
+    const { data, error } = await sb.from('posts_feed').select('*').in('id', ids);
+    if (error) return { rows: [], error: dbError(error, 'Could not load your saved posts.') };
+    /* posts_feed is filtered by can_view, so a save can outlive the access:
+       keep the order the saves were made in and drop anything gone. */
+    const by = new Map((data || []).map((r) => [r.id, r]));
+    const rows = ids.map((id) => by.get(id)).filter(Boolean).map(DB.norm);
+    await DB.decorate(rows);
+    return { rows };
+  },
+  async savedClips({ limit = 60 } = {}) {
+    if (!uid()) return { rows: [] };
+    const { data: s } = await sb.from('clip_saves').select('clip_id, created_at').eq('user_id', uid())
+      .order('created_at', { ascending: false }).limit(limit);
+    const ids = (s || []).map((r) => r.clip_id);
+    if (!ids.length) return { rows: [] };
+    const { data, error } = await sb.from('clips_feed').select('*').in('id', ids);
+    if (error) return { rows: [], error: dbError(error, 'Could not load your saved clips.') };
+    const by = new Map((data || []).map((r) => [r.id, r]));
+    const rows = ids.map((id) => by.get(id)).filter(Boolean).map((r) => ({
+      ...r, t: Date.parse(r.published_at), creator: true,
+      likes: r.like_count || 0, commentCount: r.comment_count || 0, comments: [],
+    }));
+    await DB.decorateClips(rows);
+    return { rows };
   },
 
   /* ---------- push notifications ---------- */

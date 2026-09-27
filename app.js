@@ -5,10 +5,35 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const compact = (n) => (n >= 1e4 ? (n / 1e3).toFixed(n >= 1e5 ? 0 : 1).replace(/\.0$/, '') + 'k' : n >= 1e3 ? n.toLocaleString('en-US') : String(n));
 const ago = (t) => { const m = Math.max(1, Math.round((Date.now() - t) / 6e4)); if (m < 60) return m + 'm'; const h = Math.round(m / 60); if (h < 24) return h + 'h'; return Math.round(h / 24) + 'd'; };
 const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'strategy';
-const money = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: Math.abs(n) % 1 ? 2 : 0, maximumFractionDigits: 2 });
+const plural = (n, one, many) => (n === 1 ? one : many || one + 's');
+/* The badge colours people can pick. Each has a matching .badge.t-<key> rule;
+   adding one here and there is all it takes. */
+const TONES = [
+  ['floor', '#18A583', 'Phthalo green'], ['cyan', '#2FC8C0', 'Cyan'], ['sky', '#4EA8F5', 'Sky blue'],
+  ['violet', '#A97BF0', 'Violet'], ['crimson', '#E5484D', 'Crimson'], ['coral', '#FF7A59', 'Coral'],
+  ['amber', '#F0883C', 'Amber'], ['gold', '#E8B647', 'Gold'], ['lime', '#9BD44B', 'Lime'],
+  ['paper', '#EFE9D8', 'Ticket paper'], ['board', '#12291F', 'Dark board'],
+];
+/* null means the trader keeps the figure private, which is not the same as zero */
+const money = (n) => n == null ? 'Private' : (n > 0 ? '+' : n < 0 ? '−' : '') + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: Math.abs(n) % 1 ? 2 : 0, maximumFractionDigits: 2 });
 const rrTxt = (rr) => '1:' + (Math.round(rr * 100) / 100);
 const has = (v) => v !== '' && v != null && isFinite(Number(v));
-const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+/* Added to the Home Screen, the site runs full screen with the same notch and
+   home-indicator insets as the real app, so it needs the same safe-area padding.
+   iOS reports this as navigator.standalone; everywhere else it is display-mode. */
+try {
+  const installed = window.navigator.standalone === true
+    || matchMedia('(display-mode: standalone)').matches;
+  document.documentElement.classList.toggle('is-standalone', installed);
+} catch (e) {}
+/* Two things can ask for less motion: the device, and the Display setting. Either
+   one is enough, and the device's wish is never overridden by the setting. */
+const systemReduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let reduced = systemReduced;
+function syncMotion() {
+  reduced = systemReduced || !!(ME && ME.reduce_motion);
+  document.documentElement.toggleAttribute('data-reduced', reduced);
+}
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 2400); }
 
 const I = {
@@ -34,6 +59,15 @@ const I = {
   x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   play: '<svg viewBox="0 0 24 24" aria-hidden="true" style="width:12px;height:12px;fill:currentColor;stroke:none"><path d="M6 4l14 8-14 8z"/></svg>',
   pause: '<svg viewBox="0 0 24 24" aria-hidden="true" style="width:12px;height:12px;fill:currentColor;stroke:none"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="1.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.1"/><path d="M19.2 14.4a1.5 1.5 0 0 0 .3 1.7l.1.1a1.8 1.8 0 1 1-2.6 2.6l-.1-.1a1.5 1.5 0 0 0-1.7-.3 1.5 1.5 0 0 0-.9 1.4v.2a1.8 1.8 0 0 1-3.6 0v-.1a1.5 1.5 0 0 0-1-1.4 1.5 1.5 0 0 0-1.7.3l-.1.1a1.8 1.8 0 1 1-2.6-2.6l.1-.1a1.5 1.5 0 0 0 .3-1.7 1.5 1.5 0 0 0-1.4-.9h-.2a1.8 1.8 0 0 1 0-3.6h.1a1.5 1.5 0 0 0 1.4-1 1.5 1.5 0 0 0-.3-1.7l-.1-.1a1.8 1.8 0 1 1 2.6-2.6l.1.1a1.5 1.5 0 0 0 1.7.3h.1a1.5 1.5 0 0 0 .9-1.4v-.2a1.8 1.8 0 0 1 3.6 0v.1a1.5 1.5 0 0 0 .9 1.4 1.5 1.5 0 0 0 1.7-.3l.1-.1a1.8 1.8 0 1 1 2.6 2.6l-.1.1a1.5 1.5 0 0 0-.3 1.7v.1a1.5 1.5 0 0 0 1.4.9h.2a1.8 1.8 0 0 1 0 3.6h-.1a1.5 1.5 0 0 0-1.4.9z"/></svg>',
+  bell: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2.5h-15z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>',
+  eye: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/></svg>',
+  mute: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9h3l4-4v14l-4-4H5z"/><path d="M16 10l4 4M20 10l-4 4"/></svg>',
+  check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>',
+  back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19l-7-7 7-7"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+  spark: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>',
 };
 /* badge() takes anything with { badge, tone, avatar_path }: a profile, post or strategy row.
    A picture replaces the three letters; without one the letter badge is used. */
@@ -122,7 +156,7 @@ function openProfileSetup({ edit = false } = {}) {
           <button type="button" class="btn btn-line btn-sm su-rm" id="suRemovePic" ${cur && cur.avatar_path ? '' : 'hidden'}>Remove picture</button>
         </div></div>
       <div class="g2"><label class="field"><span>Badge (3 letters)</span><input class="input su-badge-in" id="suBadgeIn" maxlength="3" value="${esc(cur ? cur.badge : hint)}" placeholder="ARJ" spellcheck="false" autocomplete="off"></label>
-        <div class="field"><span>Badge colour</span><div class="themes" role="group" aria-label="Badge colour">${[['floor', '#18A583', 'Phthalo green'], ['paper', '#EFE9D8', 'Ticket paper'], ['board', '#12291F', 'Dark board']].map(([k, c, l]) => `<button type="button" class="su-tone" data-v="${k}" style="background:${c}" aria-label="${l}" aria-pressed="${k === su.tone}"></button>`).join('')}</div></div></div>
+        <div class="field"><span>Badge colour</span><div class="themes" role="group" aria-label="Badge colour">${TONES.map(([k, c, l]) => `<button type="button" class="su-tone" data-v="${k}" style="background:${c}" aria-label="${l}" aria-pressed="${k === su.tone}"></button>`).join('')}</div></div></div>
       <div class="field"><span>Markets you trade (optional)</span><div class="su-markets">${Object.keys(SYMBOLS).map((m) => `<button type="button" class="chip su-mk" data-m="${m}" aria-pressed="${su.markets.has(m)}">${m}</button>`).join('')}</div></div>
       <label class="field"><span>Bio (optional)</span><textarea class="input" id="suBio" maxlength="160" placeholder="What you trade and when">${esc(cur ? cur.bio : '')}</textarea></label>
       <div class="err" id="suErr" role="alert"></div>
@@ -200,10 +234,13 @@ async function clipSave(id) {
 }
 async function clipShare(id) {
   const c = CLIPS.get(id); if (!c) return;
-  const url = `https://www.youtube.com/watch?v=${c.video_id}`;
-  const title = `${c.source} on YouTube`;
-  if (window.TF_NATIVE && window.tfShare && await window.tfShare({ title, text: c.title, url })) return;
-  if (navigator.share) { try { await navigator.share({ title, text: c.title, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  shareLink({ url: `https://www.youtube.com/watch?v=${c.video_id}`, title: `${c.source} on YouTube`, text: c.title });
+}
+/* One share path for everything: the iOS sheet, then the browser's own sheet,
+   then the clipboard, then a prompt if even that is refused. */
+async function shareLink({ url, title, text }) {
+  if (window.TF_NATIVE && window.tfShare && await window.tfShare({ title, text, url })) return;
+  if (navigator.share) { try { await navigator.share({ title, text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
   try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (e) { prompt('Copy this link', url); }
 }
 async function openClip(id) {
@@ -226,10 +263,10 @@ async function sharePost(id) {
   const p = POSTS.get(id); if (!p) return;
   const url = `${SITE}#/p/${encodeURIComponent(id)}`;
   const title = `${p.handle} on The Trading Floor`;
-  const text = `${p.tk.side === 'long' ? 'Long' : 'Short'} ${p.sym}, ${money(p.tk.pnl)}${p.caption ? ': ' + p.caption.slice(0, 80) : ''}`;
-  if (window.TF_NATIVE && window.tfShare && await window.tfShare({ title, text, url })) return;
-  if (navigator.share) { try { await navigator.share({ title, text, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
-  try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch (e) { prompt('Copy this link', url); }
+  /* a private result is left out of the share text rather than sent as "$0" */
+  const res = p.tk.pnl == null ? '' : ', ' + money(p.tk.pnl);
+  const text = `${p.tk.side === 'long' ? 'Long' : 'Short'} ${p.sym}${res}${p.caption ? ': ' + p.caption.slice(0, 80) : ''}`;
+  shareLink({ url, title, text });
 }
 /* the composer gets real camera and library buttons inside the app */
 async function nativePhoto(fromCamera) {
@@ -307,7 +344,9 @@ function ticketStrip(p) {
   return `<div class="ticket"><div class="ticket-strip tk3">
     <div class="tf"><b>Side</b><i>${k.side === 'long' ? 'Long' : 'Short'} ${esc(p.sym)}</i></div>
     <div class="tf"><b>Risk:reward</b><i>${k.rr ? rrTxt(k.rr) : '–'}</i></div>
-    <div class="stamp ${k.pnl > 0 ? 'win' : 'loss'}" title="Profit / loss">${money(k.pnl)}</div>
+    ${k.pnl == null
+      ? `<div class="stamp hid" title="This trader keeps their profit and loss private">${I.lock}Private</div>`
+      : `<div class="stamp ${k.pnl > 0 ? 'win' : 'loss'}" title="Profit / loss">${money(k.pnl)}</div>`}
   </div></div>`;
 }
 function mediaHTML(p, { reel = false } = {}) {
@@ -337,7 +376,9 @@ function postHTML(p) {
     ${ticketStrip(p)}
     ${p.caption ? `<p class="caption"><a href="#/u/${esc(p.handle)}">${esc(p.handle)}</a>${esc(p.caption)}</p>` : ''}
     ${more}<div class="cmts">${cm}</div>
-    <form class="cmt-form" data-act="comment" data-id="${p.id}"><label class="sr" for="c-${p.id}">Add a comment</label><input class="input" id="c-${p.id}" placeholder="Add a comment" autocomplete="off" maxlength="280"><button class="btn btn-line btn-sm">Post</button></form>
+    ${p.allow_comments === false
+      ? `<div class="cmt-off">${I.lock} Comments are turned off on this post.</div>`
+      : `<form class="cmt-form" data-act="comment" data-id="${p.id}"><label class="sr" for="c-${p.id}">Add a comment</label><input class="input" id="c-${p.id}" placeholder="Add a comment" autocomplete="off" maxlength="280"><button class="btn btn-line btn-sm">Post</button></form>`}
     <div class="post-time">${ago(p.t)} ago</div>
   </article>`;
 }
@@ -356,7 +397,7 @@ function shell(active, inner) {
   const who = ME ? `<a class="me" href="#/me">${badge(ME, 36)}<div><strong>${esc(ME.handle)}</strong><small>Badge ${esc(ME.badge)}</small></div></a>`
     : SESSION ? `<div class="me-empty"><p>Signed in. Finish your profile to post.</p><button class="btn btn-line" data-act="setup">Set up profile</button></div>`
     : `<div class="me-empty"><p>You are not signed in.</p><button class="btn btn-line" data-act="signin">Sign in or join</button></div>`;
-  return `<div class="shell">
+  return `<div class="shell" data-sec="${esc(active)}">
     <aside class="rail"><a class="mark" href="#/">The<br>Trading<br>Floor</a>
       <nav aria-label="Main">${links}</nav>
       <button class="btn btn-floor" data-act="compose">${I.plus}Post a trade</button>
@@ -377,16 +418,18 @@ async function feedView() {
   const f = feedFilter;
   /* The Floor is only what people here have posted. Creator clips live in Replays. */
   const [{ rows, error }, tapeRes, rising] = await Promise.all([
-    DB.posts({ filter: f }), DB.posts({ limit: 10 }), DB.strategies({ limit: 4 }),
+    DB.posts({ filter: f }), DB.posts({ limit: 10, activity: true }), DB.strategies({ limit: 4 }),
   ]);
   if (error) return shell('floor', `<div class="page">${errorBlock(error)}</div>`);
   feedCursor = rows.length ? rows[rows.length - 1].created_at : null; feedDone = rows.length < 20;
   const tape = tapeRes.rows;
   const chips = [['all', 'For you'], ['following', 'Following'], ['photos', 'Photos'], ['videos', 'Videos'], ['wins', 'Wins'], ['losses', 'Losses']]
     .map(([k, l]) => `<button class="chip" data-act="feed-filter" data-f="${k}" aria-pressed="${f === k}">${l}</button>`).join('');
-  const tapeLi = tape.map((p) => `<li>${badge(p, 28)}<span><b>${esc(p.handle)}</b> ${p.tk.side} ${esc(p.sym)}</span><i class="${p.tk.pnl > 0 ? 'w' : ''}">${money(p.tk.pnl)}</i></li>`).join('');
+  const tapeLi = tape.map((p) => `<li>${badge(p, 28)}<span><b>${esc(p.handle)}</b> ${p.tk.side} ${esc(p.sym)}</span><i class="${p.tk.pnl == null ? 'q' : p.tk.pnl > 0 ? 'w' : ''}">${money(p.tk.pnl)}</i></li>`).join('');
   const risingHTML = rising.map((s) => `<a class="mini-strat" href="#/s/${s.id}">${badge(s, 34)}<div><strong>${esc(s.title)}</strong><small>${esc(s.market)}, ${s.steps.length} steps, ${compact(s.followers)} following</small></div></a>`).join('');
-  const none = !tape.length;
+  /* "quiet" means nothing to show at all, not merely an empty tape: everyone
+     could have their activity switched off while still posting. */
+  const none = !tape.length && !rows.length && f === 'all';
   const main = none
     ? emptyBlock('The floor is quiet.', 'Nobody has posted a trade yet. Upload a screenshot or a screen recording of a trade you took and yours will be the first thing everyone sees.', `<button class="btn btn-floor" data-act="compose">${I.plus}Post the first trade</button>`)
     : rows.length ? rows.map(postHTML).join('') + (feedDone ? '' : `<div class="feed-more" id="feedMore">${loadingBlock()}</div>`)
@@ -561,6 +604,7 @@ async function replaysView() {
       <div class="reel-acts">
         <button class="act" data-act="like" data-id="${p.id}" aria-pressed="${liked}" aria-label="Like">${I.heart}<span>${compact(p.likes)}</span></button>
         <button class="act" data-act="open-post" data-id="${p.id}" aria-label="Comments">${I.comment}<span>${p.commentCount}</span></button>
+        <button class="act" data-act="share-post" data-id="${p.id}" aria-label="Share">${I.share}<span>Share</span></button>
         <button class="act" data-act="save" data-id="${p.id}" aria-pressed="${state.saved.has(p.id)}" aria-label="Save">${I.save}<span>Save</span></button>
         ${p.strategy_id ? `<a class="act" href="#/s/${p.strategy_id}" aria-label="Strategy">${I.builder}<span>Strategy</span></a>` : ''}
       </div></section>`; }).join('');
@@ -641,6 +685,7 @@ function reelHTML(n) {
     </div>
     <div class="nacts">
       <button class="act" data-act="news-mute" aria-label="Sound on or off">${I.sound}<span class="nsoundtxt">${newsMuted ? 'Sound off' : 'Sound on'}</span></button>
+      <button class="act" data-act="news-share" data-url="https://www.youtube.com/watch?v=${esc(n.video_id)}" data-title="${esc(n.title)}" data-src="${esc(n.source)}" aria-label="Share">${I.share}<span>Share</span></button>
       <a class="act" href="https://www.youtube.com/watch?v=${esc(n.video_id)}" target="_blank" rel="noopener noreferrer" aria-label="Watch on YouTube">${I.ext}<span>YouTube</span></a>
     </div>
   </section>`;
@@ -687,13 +732,20 @@ function toggleNewsSound() {
 const ex = { q: '', tab: 'top' };
 let _exT = null, _exToken = 0;
 const EX_TABS = [['top', 'Top'], ['traders', 'Traders'], ['videos', 'Videos'], ['posts', 'Posts'], ['strategies', 'Strategies']];
+/* Three states, not two: following, waiting on approval, or neither. */
+function followBtn(u, size = '') {
+  const req = state.requested.has(u.id), fol = state.following.has(u.id);
+  const label = fol ? 'Following' : req ? 'Requested' : u.is_private ? 'Request' : 'Follow';
+  const cls = fol || req ? 'btn-line' : 'btn-floor';
+  return `<button class="btn ${size} ${cls}" data-act="follow" data-uid="${u.id}">${label}</button>`;
+}
 function traderCard(u) {
-  const me = ME && u.id === ME.id; const fol = state.following.has(u.id);
+  const me = ME && u.id === ME.id;
   return `<div class="tcard">${badge(u, 56)}
     <div class="tinfo"><a href="#/u/${esc(u.handle)}"><strong>${esc(u.handle)}</strong></a>
       <small>${esc(u.name)}</small>
       <span class="tstat">${compact(u.follower_count)} followers${u.markets && u.markets.length ? ' · ' + esc(u.markets.slice(0, 3).join(' ')) : ''}</span></div>
-    ${me ? '' : `<button class="btn btn-sm ${fol ? 'btn-line' : 'btn-floor'}" data-act="follow" data-uid="${u.id}">${fol ? 'Following' : 'Follow'}</button>`}</div>`;
+    ${me ? '' : followBtn(u, 'btn-sm')}</div>`;
 }
 const exRow = (title, body, more) => `<section class="exrow"><header><h2>${title}</h2>${more || ''}</header>${body}</section>`;
 async function exploreView() {
@@ -824,7 +876,7 @@ let profTab = 'posts';
 function thumbHTML(p) {
   POSTS.set(p.id, p);
   return `<button class="thumb" data-act="open-post" data-id="${p.id}" aria-label="Open ${esc(p.sym)} post, ${money(p.tk.pnl)}">${p.type === 'image' ? `<img src="${esc(p.url)}" alt="" loading="lazy">` : `<video src="${esc(p.url)}#t=0.1" muted playsinline preload="metadata"></video>`}
-    <span class="r ${p.tk.pnl > 0 ? 'w' : ''}">${money(p.tk.pnl)}</span>${p.type === 'video' ? '<span class="rp">Video</span>' : ''}</button>`;
+    <span class="r ${p.tk.pnl == null ? 'q' : p.tk.pnl > 0 ? 'w' : ''}">${money(p.tk.pnl)}</span>${p.type === 'video' ? '<span class="rp">Video</span>' : ''}</button>`;
 }
 async function meView() {
   if (ME) return profileView(ME.handle, true);
@@ -836,8 +888,14 @@ async function profileView(h, isMeRoute = false) {
   if (!u) return shell('discover', `<div class="page">${emptyBlock('No trader with that handle.', 'Nobody has signed up as @' + esc(h) + '.', `<a class="btn btn-floor" href="#/floor">Back to the floor</a>`)}</div>`);
   const [pr, strats] = await Promise.all([DB.posts({ user_id: u.id, limit: 60 }), DB.strategies({ user_id: u.id, sort: 'new' })]);
   const posts = pr.rows;
-  const wins = posts.filter((p) => p.tk.pnl > 0).length; const me = ME && u.id === ME.id; const fol = state.following.has(u.id);
-  const net = posts.reduce((a, p) => a + p.tk.pnl, 0);
+  /* posts with a private result cannot be counted as a win or a loss, and must
+     not be silently treated as breakeven either, so they are left out of both. */
+  const shown = posts.filter((p) => p.tk.pnl != null);
+  const wins = shown.filter((p) => p.tk.pnl > 0).length; const me = ME && u.id === ME.id;
+  /* A private account's posts are already withheld by the database, so this is
+     an explanation of an empty page rather than the thing enforcing it. */
+  const locked = u.is_private && !me && !state.following.has(u.id);
+  const net = shown.reduce((a, p) => a + p.tk.pnl, 0);
   let body = '';
   if (profTab === 'posts') body = posts.length ? `<div class="thumbs">${posts.map(thumbHTML).join('')}</div>` : `<div class="empty">No trades posted yet.${me ? '<br><button class="btn btn-floor" data-act="compose">Post your first trade</button>' : ''}</div>`;
   if (profTab === 'replays') { const r = posts.filter((p) => p.type === 'video'); body = r.length ? `<div class="thumbs">${r.map(thumbHTML).join('')}</div>` : `<div class="empty">No replays yet.${me ? '<br><button class="btn btn-floor" data-act="compose">Upload a screen recording</button>' : ''}</div>`; }
@@ -845,14 +903,147 @@ async function profileView(h, isMeRoute = false) {
   document.title = '@' + u.handle + ' | The Trading Floor';
   return shell(me ? 'me' : 'discover', `<div class="page"><header class="prof">${badge(u, 150)}<div>
       <h1>${esc(u.name)}</h1><div class="h">@${esc(u.handle)}, badge ${esc(u.badge)}</div>${u.bio ? `<p>${esc(u.bio)}</p>` : ''}
-      <div class="stats"><span><b>${posts.length}</b>posts</span>${posts.length ? `<span><b>${wins}/${posts.length}</b>winners</span><span><b>${money(Math.round(net * 100) / 100)}</b>net P/L</span>` : ''}<span><b>${compact(u.follower_count)}</b>followers</span><span><b>${compact(u.following_count)}</b>following</span><span><b>${strats.length}</b>strategies</span></div>
-      <div class="row">${me ? `<button class="btn btn-floor" data-act="compose">${I.plus}Post a trade</button><button class="btn btn-line" data-act="edit-profile">Edit profile</button><a class="btn btn-line" href="#/builder">New strategy</a><button class="btn btn-line" data-act="signout">Sign out</button><button class="btn btn-line btn-quiet" data-act="delete-account">Delete account</button>` : `<button class="btn ${fol ? 'btn-line' : 'btn-floor'}" data-act="follow" data-uid="${u.id}">${fol ? 'Following' : 'Follow'}</button>
+      <div class="stats"><span><b>${posts.length}</b>${plural(posts.length, 'post')}</span>${shown.length ? `<span><b>${wins}/${shown.length}</b>${plural(shown.length, 'winner')}</span><span><b>${money(Math.round(net * 100) / 100)}</b>net P/L</span>` : ''}<span><b>${compact(u.follower_count)}</b>${plural(u.follower_count, 'follower')}</span><span><b>${compact(u.following_count)}</b>following</span><span><b>${strats.length}</b>${plural(strats.length, 'strategy', 'strategies')}</span></div>
+      <div class="row">${me ? `<button class="btn btn-floor" data-act="compose">${I.plus}Post a trade</button><button class="btn btn-line" data-act="edit-profile">Edit profile</button><a class="btn btn-line" href="#/builder">New strategy</a><a class="btn btn-line" href="#/settings">${I.gear}Settings${u.pending_count ? `<span class="set-count">${u.pending_count}</span>` : ''}</a>` : `${followBtn(u)}
         <button class="btn btn-line" data-act="block" data-uid="${u.id}">${state.blocked.has(u.id) ? 'Unblock' : 'Block'}</button>
+        <button class="btn btn-line" data-act="mute" data-uid="${u.id}">${state.muted.has(u.id) ? 'Unmute' : 'Mute'}</button>
         <button class="btn btn-line" data-act="report-profile" data-uid="${u.id}">${I.flag}Report</button>`}
       ${(u.markets || []).map((m) => `<span class="chip" style="display:inline-grid;place-items:center">${esc(m)}</span>`).join('')}</div>
     </div></header>
-    <div class="tabs" role="tablist">${[['posts', 'Posts'], ['replays', 'Replays'], ['strategies', 'Strategies']].map(([k, l]) => `<button role="tab" aria-selected="${profTab === k}" data-act="prof-tab" data-t="${k}">${l}</button>`).join('')}</div>
-    ${body}</div>`);
+    ${locked ? `<div class="locked">${I.lock}<h2>This account is private</h2><p>Only people @${esc(u.handle)} has approved can see their trades and replays. Send a request and they will decide.</p></div>`
+      : `<div class="tabs" role="tablist">${[['posts', 'Posts'], ['replays', 'Replays'], ['strategies', 'Strategies']].map(([k, l]) => `<button role="tab" aria-selected="${profTab === k}" data-act="prof-tab" data-t="${k}">${l}</button>`).join('')}</div>
+    ${body}`}</div>`);
+}
+
+/* ============ SETTINGS ============ */
+/* One screen per group, the way a phone does it, rather than one long page.
+   Nothing here is the only thing enforcing a setting: every switch has a
+   matching rule in the database, so turning it off in a devtools console
+   changes the look of this page and nothing else. */
+const SET_GROUPS = [
+  ['privacy', 'Account privacy', I.lock, 'Who can see your trades, and who can reply to them'],
+  ['requests', 'Follow requests', I.check, 'People waiting for you to let them in'],
+  ['notifications', 'Notifications', I.bell, 'What you want to be told about'],
+  ['saved', 'Saved', I.save, 'Posts and clips you kept for later'],
+  ['blocked', 'Blocked accounts', I.block, 'People who cannot see or contact you'],
+  ['muted', 'Muted accounts', I.mute, 'People you still follow but do not want in your feed'],
+  ['display', 'Display', I.eye, 'Motion and what your own page shows'],
+  ['about', 'About', I.shield, 'Terms, privacy and your account'],
+];
+const sw = (key, label, on, note = '') => `<label class="sw">
+  <span><b>${label}</b>${note ? `<small>${note}</small>` : ''}</span>
+  <input type="checkbox" data-act="setting" data-key="${key}" ${on ? 'checked' : ''}>
+  <i aria-hidden="true"></i></label>`;
+
+async function settingsView(sub) {
+  if (!ME) return shell('me', `<div class="page">${emptyBlock('Settings need an account.', 'Sign in and set up a profile to change your settings.', `<button class="btn btn-floor" data-act="signin">Sign in or join</button>`)}</div>`);
+  const head = (title, back = '#/settings') => `<header class="set-head"><a class="ib" href="${back}" aria-label="Back">${I.back}</a><h1>${title}</h1></header>`;
+
+  if (!sub) {
+    const pending = ME.pending_count || 0;
+    const rows = SET_GROUPS.map(([k, label, ic, note]) => `<a class="set-row" href="#/settings/${k}">
+      <span class="set-ic" aria-hidden="true">${ic}</span>
+      <span class="set-txt"><b>${label}</b><small>${note}</small></span>
+      ${k === 'requests' && pending ? `<span class="set-count">${pending}</span>` : ''}
+      <span class="set-chev" aria-hidden="true">${I.back}</span></a>`).join('');
+    return shell('me', `<div class="page page-narrow">
+      <header class="set-head"><a class="ib" href="#/me" aria-label="Back to profile">${I.back}</a><h1>Settings</h1></header>
+      <div class="set-who">${badge(ME, 52)}<div><strong>@${esc(ME.handle)}</strong><small>${esc(ME.name || '')}</small></div>
+        <button class="btn btn-line btn-sm" data-act="edit-profile">Edit profile</button></div>
+      <div class="set-list">${rows}</div></div>`);
+  }
+
+  if (sub === 'privacy') {
+    const s = await DB.mySettings(); if (!s) return shell('me', `<div class="page">${errorBlock('Could not load your settings.')}</div>`);
+    return shell('me', `<div class="page page-narrow">${head('Account privacy')}
+      ${sw('is_private', 'Private account', s.is_private, 'Only people you approve can see your trades, replays and strategies. Everyone already following you stays.')}
+      <div class="set-note">${I.lock} Your handle, badge and follower count stay visible either way, so people can find you and ask.</div>
+      <h2 class="set-h2">Comments</h2>
+      ${sw('allow_comments', 'Let people comment on my posts', s.allow_comments, 'Turn this off and nobody can add a new comment. Comments already there stay.')}
+      <h2 class="set-h2">Your numbers</h2>
+      ${sw('show_pnl', 'Show profit and loss on my posts', s.show_pnl, 'Off hides the money figure on your trades from everyone else. The side, market and risk-to-reward still show.')}
+      ${sw('show_activity', 'Show my activity', s.show_activity, 'Off keeps your trades out of the tape and out of Explore. People who follow you still see them in their feed.')}</div>`);
+  }
+
+  if (sub === 'notifications') {
+    const s = await DB.mySettings(); if (!s) return shell('me', `<div class="page">${errorBlock('Could not load your settings.')}</div>`);
+    return shell('me', `<div class="page page-narrow">${head('Notifications')}
+      ${sw('notify_likes', 'Likes', s.notify_likes)}
+      ${sw('notify_comments', 'Comments', s.notify_comments)}
+      ${sw('notify_follows', 'New followers and requests', s.notify_follows)}
+      ${sw('notify_news', 'Market news', s.notify_news, 'Headlines and videos as they come in.')}
+      <div class="set-note">${I.bell} These control what the app sends to your phone. On the web you will only see them while the site is open.</div></div>`);
+  }
+
+  if (sub === 'display') {
+    const s = await DB.mySettings(); if (!s) return shell('me', `<div class="page page-narrow">${errorBlock('Could not load your settings.')}</div>`);
+    return shell('me', `<div class="page page-narrow">${head('Display')}
+      ${sw('reduce_motion', 'Reduce motion', s.reduce_motion, 'Stops videos playing on their own and turns off the page transitions.')}
+      <div class="set-note">${I.eye} If your phone or computer already asks for less motion, that is respected whatever this says.</div></div>`);
+  }
+
+  if (sub === 'requests') {
+    const reqs = await DB.followRequests();
+    const body = reqs.length ? `<div class="set-people">${reqs.map((r) => `<div class="set-person" data-row="${esc(r.follower_id)}">
+        ${badge(r, 44)}<div class="set-txt"><a href="#/u/${esc(r.handle)}"><b>@${esc(r.handle)}</b></a><small>${esc(r.name || '')}</small></div>
+        <button class="btn btn-floor btn-sm" data-act="req-yes" data-uid="${esc(r.follower_id)}">Approve</button>
+        <button class="btn btn-line btn-sm" data-act="req-no" data-uid="${esc(r.follower_id)}">Decline</button></div>`).join('')}</div>`
+      : `<div class="empty">No requests waiting.${ME.is_private ? '' : ' Your account is public, so people follow you without asking.'}</div>`;
+    return shell('me', `<div class="page page-narrow">${head('Follow requests')}${body}</div>`);
+  }
+
+  if (sub === 'blocked' || sub === 'muted') {
+    const ids = [...(sub === 'blocked' ? state.blocked : state.muted)];
+    const people = await DB.profilesByIds(ids);
+    const act = sub === 'blocked' ? 'block' : 'mute';
+    const body = people.length ? `<div class="set-people">${people.map((u) => `<div class="set-person">
+        ${badge(u, 44)}<div class="set-txt"><a href="#/u/${esc(u.handle)}"><b>@${esc(u.handle)}</b></a><small>${esc(u.name || '')}</small></div>
+        <button class="btn btn-line btn-sm" data-act="${act}" data-uid="${u.id}">${sub === 'blocked' ? 'Unblock' : 'Unmute'}</button></div>`).join('')}</div>`
+      : `<div class="empty">${sub === 'blocked' ? 'You have not blocked anyone.' : 'You have not muted anyone.'}</div>`;
+    return shell('me', `<div class="page page-narrow">${head(sub === 'blocked' ? 'Blocked accounts' : 'Muted accounts')}
+      <div class="set-note">${sub === 'blocked' ? I.block + ' A blocked account cannot see your posts, follow you or comment, and you will not see theirs.' : I.mute + ' Muting is quiet: their posts leave your feed and they are not told.'}</div>
+      ${body}</div>`);
+  }
+
+  if (sub === 'saved') {
+    const [p, c] = await Promise.all([DB.savedPosts(), DB.savedClips()]);
+    const posts = p.rows || [], clips = c.rows || [];
+    posts.forEach((x) => POSTS.set(x.id, x)); clips.forEach((x) => CLIPS.set(x.id, x));
+    const body = (posts.length || clips.length)
+      ? `${posts.length ? `<h2 class="set-h2">Trades</h2><div class="thumbs">${posts.map(thumbHTML).join('')}</div>` : ''}
+         ${clips.length ? `<h2 class="set-h2">Clips</h2><div class="set-clips">${clips.map(clipPostHTML).join('')}</div>` : ''}`
+      : `<div class="empty">Nothing saved yet. Tap the bookmark on any trade or clip and it will be kept here, just for you.</div>`;
+    return shell('me', `<div class="page page-narrow">${head('Saved')}
+      <div class="set-note">${I.save} Only you can see this.</div>${body}</div>`);
+  }
+
+  if (sub === 'about') {
+    return shell('me', `<div class="page page-narrow">${head('About')}
+      <div class="set-list">
+        <a class="set-row" href="terms.html"><span class="set-ic">${I.builder}</span><span class="set-txt"><b>Terms of use</b><small>What you agree to by posting here</small></span><span class="set-chev">${I.ext}</span></a>
+        <a class="set-row" href="privacy.html"><span class="set-ic">${I.shield}</span><span class="set-txt"><b>Privacy policy</b><small>What we store and why</small></span><span class="set-chev">${I.ext}</span></a>
+      </div>
+      <h2 class="set-h2">Account</h2>
+      <div class="set-note">${I.flag} Nothing posted here is advice, and no result on this site is a promise of another one.</div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn btn-line" data-act="signout">Sign out</button>
+        <button class="btn btn-line btn-quiet" data-act="delete-account">Delete account</button></div></div>`);
+  }
+
+  return shell('me', `<div class="page page-narrow">${head('Settings')}<div class="empty">That settings page does not exist.</div></div>`);
+}
+
+/* A switch saves the moment it is flipped, and puts itself back if the save fails. */
+async function saveSetting(input) {
+  const key = input.dataset.key, want = input.checked;
+  input.disabled = true;
+  const msg = await DB.setSetting({ [key]: want });
+  input.disabled = false;
+  if (msg) { input.checked = !want; toast(msg); return; }
+  toast('Saved');
+  if (key === 'reduce_motion') syncMotion();
+  /* the privacy switch changes what the rest of the page can say */
+  if (key === 'is_private') render(true);
 }
 
 /* ============ POST MODAL ============ */
@@ -1056,6 +1247,8 @@ document.addEventListener('click', async (e) => {
     case 'news-tab': news.tab = el.dataset.t; news.source = 'All'; render(); break;
     case 'news-src': news.source = el.dataset.v; render(); break;
     case 'news-mute': toggleNewsSound(); break;
+    /* news belongs to the publisher, so sharing it sends people to them */
+    case 'news-share': shareLink({ url: el.dataset.url, title: el.dataset.src, text: el.dataset.title }); break;
     case 'clip-sound': toggleClipSound(); break;
     case 'clip-like': clipLike(el.dataset.id); break;
     case 'clip-save': clipSave(el.dataset.id); break;
@@ -1067,14 +1260,43 @@ document.addEventListener('click', async (e) => {
     case 'native-camera': nativePhoto(true); break;
     case 'native-photos': nativePhoto(false); break;
     case 'report-profile': openReport({ profile_id: el.dataset.uid }); break;
+    case 'req-yes': case 'req-no': {
+      const u = el.dataset.uid, yes = el.dataset.act === 'req-yes';
+      el.disabled = true;
+      const m = await DB.answerRequest(u, yes);
+      if (m) { el.disabled = false; toast(m); break; }
+      /* drop the row rather than reloading the whole list under them */
+      $(`.set-person[data-row="${u}"]`)?.remove();
+      if (ME) ME.pending_count = Math.max(0, (ME.pending_count || 1) - 1);
+      if (!$('.set-person')) $('.set-people')?.replaceWith(Object.assign(document.createElement('div'), { className: 'empty', textContent: 'No requests waiting.' }));
+      toast(yes ? 'Approved' : 'Declined');
+      break;
+    }
     case 'block': toggleBlock(el.dataset.uid); break;
+    case 'mute': {
+      if (!need()) break;
+      const u = el.dataset.uid, on = !state.muted.has(u);
+      const m = await DB.setMute(u, on);
+      if (m) { toast(m); break; }
+      toast(on ? 'Muted. Their posts will not show in your feed.' : 'Unmuted.');
+      render(true); break;
+    }
     case 'delete-account': openDeleteAccount(); break;
     case 'ex-tab': ex.tab = el.dataset.t; exSearch(); break;
     case 'ex-clear': { ex.q = ''; const box = $('#exq'); if (box) { box.value = ''; box.focus(); } exSearch(); break; }
     case 'disc-style': disc.style = el.dataset.v; $$('[data-act="disc-style"]').forEach((b) => b.setAttribute('aria-pressed', b === el)); renderDiscGrid(); break;
     case 'follow-strat': { if (!need()) break; const on = !state.followedStrategies.has(id); const m = await DB.setStrategyFollow(id, on); if (m) { toast(m); break; } render(true); toast(on ? 'Following strategy' : 'Unfollowed strategy'); break; }
     case 'fork': state.draft = null; location.hash = '#/builder?fork=' + id; break;
-    case 'follow': { if (!need()) break; const u = el.dataset.uid; const on = !state.following.has(u); const m = await DB.setFollow(u, on); if (m) { toast(m); break; } render(true); break; }
+    case 'follow': {
+      if (!need()) break;
+      const u = el.dataset.uid;
+      /* a standing request counts as "on", so tapping it withdraws the request */
+      const on = !state.following.has(u) && !state.requested.has(u);
+      const { status, error } = await DB.setFollow(u, on);
+      if (error) { toast(error); break; }
+      if (status === 'pending') toast('Request sent. They have to approve it.');
+      render(true); break;
+    }
     case 'prof-tab': profTab = el.dataset.t; render(true); break;
     case 'open-post': openPostModal(id); break;
     case 'theme': d.theme = el.dataset.v; renderBuilder(); break;
@@ -1134,6 +1356,7 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('change', (e) => {
   const t = e.target;
+  if (t.dataset.act === 'setting') { saveSetting(t); return; }
   if (t.dataset.act === 'disc-m') { disc.market = t.value; renderDiscGrid(); }
   if (t.dataset.act === 'disc-s') { disc.sort = t.value; render(true); }
   if (t.dataset.s === 'kind' && state.draft) { state.draft.steps[+t.dataset.i].kind = t.value; renderPreview(); }
@@ -1148,7 +1371,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.
 /* ============ ROUTER ============ */
 let lastRoute = null, _tok = 0;
 function parseHash() { const h = location.hash.replace(/^#/, '') || '/'; const [path, qs] = h.split('?'); return { parts: path.split('/').filter(Boolean), params: new URLSearchParams(qs || '') }; }
-const ACTIVE = { p: 'floor', floor: 'floor', replays: 'replays', news: 'news', explore: 'explore', discover: 'explore', s: 'discover', u: 'discover', me: 'me', builder: 'builder' };
+const ACTIVE = { p: 'floor', floor: 'floor', replays: 'replays', news: 'news', explore: 'explore', discover: 'explore', s: 'discover', u: 'discover', me: 'me', builder: 'builder', settings: 'me' };
 async function render(keepScroll = false) {
   const tok = ++_tok; const y = scrollY; const { parts, params } = parseHash(); const r = parts[0] || '';
   destroyReplays(); destroyMedia(); if (_moreIO) _moreIO.disconnect(); if (_newsIO) _newsIO.disconnect(); destroyReels(); stopClips(); Landing.destroy(); POSTS.clear();
@@ -1167,11 +1390,12 @@ async function render(keepScroll = false) {
     else if (r === 'me') { if (lastRoute !== '#/me') profTab = 'posts'; html = await meView(); }
     else if (r === 'u') { if (ME && parts[1] === ME.handle) { location.replace('#/me'); return; } if (lastRoute !== location.hash.split('?')[0]) profTab = 'posts'; html = await profileView(parts[1] || ''); }
     else if (r === 'builder') html = await builderView(params);
+    else if (r === 'settings') html = await settingsView(parts[1] || '');
     else html = shell('floor', `<div class="page">${emptyBlock('Not on the floor.', 'That page does not exist.', `<a class="btn btn-floor" href="#/floor">Go to the feed</a>`)}</div>`);
   } catch (err) { console.error(err); html = shell(ACTIVE[r] || 'floor', `<div class="page">${errorBlock('Could not reach the server. Check your connection and try again.')}</div>`); }
   if (tok !== _tok) return; // a newer navigation started while this one was loading
   app.innerHTML = html;
-  if (!['s', 'u', 'me'].includes(r) || !document.title.includes('|')) document.title = `${({ floor: 'The Floor', replays: 'Replays', news: 'News', explore: 'Explore', discover: 'Discover strategies', s: 'Strategy', u: 'Profile', me: 'Profile', builder: 'Strategy builder' })[r] || 'Not found'} | The Trading Floor`;
+  if (!['s', 'u', 'me'].includes(r) || !document.title.includes('|')) document.title = `${({ floor: 'The Floor', replays: 'Replays', news: 'News', explore: 'Explore', discover: 'Discover strategies', s: 'Strategy', u: 'Profile', me: 'Profile', builder: 'Strategy builder', settings: 'Settings' })[r] || 'Not found'} | The Trading Floor`;
   if (r === 'discover') renderDiscGrid();
   if (r === 'builder') renderBuilder();
   if (r === 'floor') watchFeedMore();
@@ -1200,4 +1424,4 @@ addEventListener('tf:app-signin', async (e) => {
   if (ME) { toast('Signed in as @' + ME.handle); render(true); resume(); }
 });
 /* re-render when someone signs in or out in this tab or another */
-addEventListener('tf:auth', () => { if ((location.hash || '#/') !== '#/') render(true); });
+addEventListener('tf:auth', () => { syncMotion(); if ((location.hash || '#/') !== '#/') render(true); });
