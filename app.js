@@ -384,7 +384,13 @@ function postHTML(p) {
 }
 let _vio;
 function hydrateMedia(root = document) {
-  if (!_vio) _vio = new IntersectionObserver((es) => es.forEach((e) => { const v = e.target; if (e.intersectionRatio > 0.6 && !reduced) v.play().catch(() => {}); else v.pause(); }), { threshold: [0, 0.6, 1] });
+  /* the observer's own ratio is measured against the scrolling feed, which
+     under-reports inside it, so a full-screen replay could sit there never
+     starting. Measure against the window instead, as the clips do. */
+  if (!_vio) _vio = new IntersectionObserver((es) => es.forEach((e) => {
+    const v = e.target;
+    if (seenRatio(v) > 0.55 && !reduced) v.play().catch(() => {}); else v.pause();
+  }), { threshold: [0, 0.25, 0.55, 0.75, 1] });
   $$('video[data-auto]', root).forEach((v) => _vio.observe(v));
 }
 function destroyMedia() { if (_vio) { _vio.disconnect(); _vio = null; } }
@@ -554,12 +560,39 @@ function seenRatio(el) {
   return Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0)) / r.height;
 }
 /* Exactly one clip plays: whichever is most in view. */
+/* Picking which clip plays used to destroy every other iframe on every scroll
+   tick. Halfway between two clips neither was over the threshold, so the one you
+   were watching got torn down and rebuilt a moment later, restarting it from the
+   beginning: the video appeared to play over and over without moving on.
+   Now a clip is only torn down once it is completely off screen, one still
+   partly visible is merely paused, and the active clip only changes when
+   another clearly beats it. */
+let _activeClip = null;
 function syncClips() {
   const wraps = $$('.clip-screen'); if (!wraps.length) return;
+  const seen = new Map();
   let best = null, bestR = 0;
-  for (const w of wraps) { const v = seenRatio(w); if (v > bestR) { bestR = v; best = w; } }
-  for (const w of wraps) if (w !== best) unmountClip(w);
-  if (best && bestR > 0.5 && !reduced) mountClip(best);
+  for (const w of wraps) { const v = seenRatio(w); seen.set(w, v); if (v > bestR) { bestR = v; best = w; } }
+
+  /* keep the current clip unless a challenger is clearly ahead of it, so a few
+     pixels of scroll cannot flip the choice back and forth */
+  const curR = _activeClip && wraps.includes(_activeClip) ? seen.get(_activeClip) || 0 : 0;
+  let active = _activeClip && wraps.includes(_activeClip) && curR > 0.35 && bestR < curR + 0.15
+    ? _activeClip
+    : (bestR > 0.5 ? best : null);
+  if (reduced) active = null;
+
+  for (const w of wraps) {
+    if (w === active) continue;
+    if ((seen.get(w) || 0) <= 0.01) unmountClip(w);        // gone: free it
+    else { const f = w.querySelector('iframe'); if (f) clipCmd(f, 'pauseVideo'); } // still visible: just pause
+  }
+  _activeClip = active;
+  if (!active) return;
+  const had = active.querySelector('iframe');
+  mountClip(active);
+  /* if it was already mounted it may have been paused on the way past */
+  if (had && !clipsPaused) clipCmd(had, 'playVideo');
 }
 function watchClips(root = document) {
   stopClips();
@@ -572,6 +605,7 @@ function watchClips(root = document) {
   syncClips();
 }
 function stopClips() {
+  _activeClip = null;
   if (_clipIO) { _clipIO.disconnect(); _clipIO = null; }
   if (_clipScroll) { removeEventListener('scroll', _clipScroll); $$('.reels, .nreels').forEach((c) => c.removeEventListener('scroll', _clipScroll)); _clipScroll = null; }
   $$('.clip-screen').forEach(unmountClip);
@@ -607,12 +641,14 @@ async function replaysView() {
         <button class="act" data-act="share-post" data-id="${p.id}" aria-label="Share">${I.share}<span>Share</span></button>
         <button class="act" data-act="save" data-id="${p.id}" aria-pressed="${state.saved.has(p.id)}" aria-label="Save">${I.save}<span>Save</span></button>
         ${p.strategy_id ? `<a class="act" href="#/s/${p.strategy_id}" aria-label="Strategy">${I.builder}<span>Strategy</span></a>` : ''}
-      </div></section>`; }).join('');
-  // creator clips are interleaved, one after every two user replays
+      </div></section>`; });
+  /* Creator clips are interleaved, one after every two user replays. This used
+     to join the reels into one string and then split it back apart on
+     "</section>", which would have come apart the moment a reel contained a
+     nested section. Keep them as an array instead. */
   const mixed = [];
-  const userReels = reels ? reels.split('</section>').filter((x) => x.trim()).map((x) => x + '</section>') : [];
   let ci = 0;
-  userReels.forEach((r, i) => { mixed.push(r); if ((i + 1) % 2 === 0 && clips[ci]) mixed.push(clipReelHTML(clips[ci++])); });
+  reels.forEach((r, i) => { mixed.push(r); if ((i + 1) % 2 === 0 && clips[ci]) mixed.push(clipReelHTML(clips[ci++])); });
   while (clips[ci]) mixed.push(clipReelHTML(clips[ci++]));
   return shell('replays', `<div class="reels">${mixed.join('')}</div>`);
 }
@@ -709,16 +745,51 @@ function unmountReel(reel) {
   reel.classList.remove('on');
 }
 let _reelIO = null;
-function watchReels() {
-  if (_reelIO) _reelIO.disconnect();
+/* Same story as the creator clips: this used to mount above a single 0.6
+   threshold and destroy the iframe below it, so scrolling across that line
+   restarted the video every time. It also trusted the observer's own ratio,
+   which is measured against the scrolling feed rather than the window and so
+   under-reports inside it. Both are fixed the same way here. */
+let _activeReel = null, _reelScroll = null, _reelTick = false;
+function syncReels() {
   const reels = $$('.nreel'); if (!reels.length) return;
-  _reelIO = new IntersectionObserver((es) => es.forEach((e) => {
-    if (e.intersectionRatio > 0.6) { if (!reduced) mountReel(e.target); }
-    else unmountReel(e.target);
-  }), { threshold: [0, 0.6, 1] });
-  reels.forEach((r) => _reelIO.observe(r));
+  const seen = new Map();
+  let best = null, bestR = 0;
+  for (const r of reels) { const v = seenRatio(r); seen.set(r, v); if (v > bestR) { bestR = v; best = r; } }
+
+  const curR = _activeReel && reels.includes(_activeReel) ? seen.get(_activeReel) || 0 : 0;
+  let active = _activeReel && reels.includes(_activeReel) && curR > 0.35 && bestR < curR + 0.15
+    ? _activeReel
+    : (bestR > 0.5 ? best : null);
+  if (reduced) active = null;
+
+  for (const r of reels) {
+    if (r === active) continue;
+    if ((seen.get(r) || 0) <= 0.01) unmountReel(r);
+    else { const f = r.querySelector('iframe'); if (f) reelCmd(f, 'pauseVideo'); }
+  }
+  _activeReel = active;
+  if (!active) return;
+  const had = active.querySelector('iframe');
+  mountReel(active);
+  if (had) reelCmd(had, 'playVideo');
 }
-function destroyReels() { if (_reelIO) { _reelIO.disconnect(); _reelIO = null; } $$('.nreel').forEach(unmountReel); }
+function watchReels() {
+  destroyReels();
+  const reels = $$('.nreel'); if (!reels.length) return;
+  _reelIO = new IntersectionObserver(() => syncReels(), { threshold: [0, 0.25, 0.5, 0.75, 1] });
+  reels.forEach((r) => _reelIO.observe(r));
+  _reelScroll = () => { if (_reelTick) return; _reelTick = true; requestAnimationFrame(() => { _reelTick = false; syncReels(); }); };
+  addEventListener('scroll', _reelScroll, { passive: true });
+  $$('.nreels').forEach((c) => c.addEventListener('scroll', _reelScroll, { passive: true }));
+  syncReels();
+}
+function destroyReels() {
+  _activeReel = null;
+  if (_reelIO) { _reelIO.disconnect(); _reelIO = null; }
+  if (_reelScroll) { removeEventListener('scroll', _reelScroll); $$('.nreels').forEach((c) => c.removeEventListener('scroll', _reelScroll)); _reelScroll = null; }
+  $$('.nreel').forEach(unmountReel);
+}
 function toggleNewsSound() {
   newsMuted = !newsMuted;
   $$('.nreel iframe').forEach((f) => reelCmd(f, newsMuted ? 'mute' : 'unMute'));

@@ -249,9 +249,16 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; min-height:
 .reels { height: calc(100vh - 0px); overflow-y: auto; scroll-snap-type: y mandatory; display: grid; justify-content: center; }
 .reel { height: 100vh; scroll-snap-align: start; display: grid; grid-template-columns: auto 64px; align-items: center; gap: 14px; padding: 18px 0; }
 .reel .phone { width: auto; height: calc(100vh - 36px); max-height: 860px; aspect-ratio: 9 / 16; border-radius: 12px; padding: 0; background: none; box-shadow: none; }
-.reel .phone-screen { border-radius: 10px; }
+/* The screen carries the .media class too, and .media sets aspect-ratio 4/5.
+   Inside a reel the frame's height is fixed, so that ratio was computing the
+   WIDTH from it — 571px inside a 370px phone — and the caption, ticket and P/L
+   stamp ran off the right of the screen. The reel frame decides the size here. */
+.reel .phone-screen { border-radius: 10px; width: 100%; aspect-ratio: auto; }
 .reel .phone-screen .ticket { margin-top: 10px; }
-.reel .phone-screen .ticket-strip { padding: 8px 10px 8px 18px; grid-template-columns: repeat(3, minmax(0,1fr)) auto; }
+/* Three children go in here — side, risk:reward, and the P/L stamp — so the
+   stamp was landing in a 1fr track and a four-figure result got clipped. Give
+   the stamp the room it needs and let the two labels take what is left. */
+.reel .phone-screen .ticket-strip { padding: 8px 10px 8px 18px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
 .reel .ticket-strip .hide-m { display: none; }
 .reel-acts { display: grid; gap: 14px; justify-items: center; align-self: end; padding-bottom: 40px; }
 .reel-acts .act { flex-direction: column; height: auto; padding: 8px; gap: 4px; font-size: 12px; }
@@ -404,8 +411,12 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; min-height:
   .book-pin .copy .l-p, .book-pin .copy .book-url { display: none; } .book-pin .l-h { font-size: clamp(44px, 12vw, 80px); }
   .replay-sec { grid-template-columns: 1fr; }
   .bld { grid-template-columns: 1fr; height: auto; }
-  .bld-ed { border-right: 0; overflow: visible; padding-bottom: 20px; }
-  .bld-bar { margin: 0 -22px; position: sticky; bottom: 56px; }
+  /* The publish bar hovers above the tab bar. It sat at 56px while the tab bar
+     is 60px tall, so a 4px sliver of the page showed between the two; and the
+     form had no room reserved beneath it, so its last rows stayed under the
+     bar. Match the tab bar exactly and leave the bar's own height as padding. */
+  .bld-ed { border-right: 0; overflow: visible; padding-bottom: 90px; }
+  .bld-bar { margin: 0 -22px; position: sticky; bottom: 60px; z-index: 20; }
   .bld-pv { padding: 14px; overflow: visible; }
   .sp-step .ticket { grid-template-columns: 1fr; }
   .sp-stats { grid-template-columns: repeat(3, 1fr); } .sp-stats .note { grid-column: 1 / -1; border-top: 1px solid var(--sline); }
@@ -500,6 +511,10 @@ textarea.input { height: auto; padding: 10px 12px; resize: vertical; min-height:
 .set-people { display: grid; gap: 1px; background: var(--line); border-radius: var(--r); overflow: hidden; }
 .set-person { display: flex; align-items: center; gap: 12px; padding: 13px 16px; background: var(--board-2); flex-wrap: wrap; }
 .set-person .set-txt a:hover { color: var(--floor); }
+/* A long handle used to run under the Approve button on a narrow phone. Let the
+   name take a line of its own and push the buttons down rather than collide. */
+.set-person .set-txt { flex: 1 1 150px; min-width: 0; }
+.set-person .set-txt b, .set-person .set-txt small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .set-clips { display: grid; gap: 16px; }
 
 .locked { display: grid; justify-items: center; gap: 10px; padding: 64px 24px; text-align: center;
