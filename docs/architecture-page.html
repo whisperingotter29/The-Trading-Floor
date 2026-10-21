@@ -1,0 +1,175 @@
+<title>Trading Floor Backend</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+  /* Layout: one column, diagram first, then where each rule is actually enforced.
+     Committed to a single dark palette on purpose — this is the product's own
+     board-and-ticket world, and a light version would be a different thing. */
+  :root {
+    --board: #07140F; --board-2: #0C1F18; --board-3: #12291F; --line: #1D3A2F;
+    --ink: #E6EDE7; --muted: #86998F;
+    --floor: #18A583; --paper: #EFE9D8; --paper-ink: #1B1A16;
+    --loss: #E5484D; --gold: #E8B647; --sky: #4EA8F5;
+    --display: "Big Shoulders Display", "Arial Narrow", sans-serif;
+    --body: "Archivo", "Helvetica Neue", Arial, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--board); color: var(--ink); font-family: var(--body);
+    font-size: 16px; line-height: 1.6; margin: 0;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 48px 90px;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; }
+
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--floor); margin: 0 0 10px; }
+  h1 { font-family: var(--display); font-weight: 900; font-size: clamp(44px, 8vw, 78px); line-height: .88; margin: 0 0 14px; text-wrap: balance; }
+  .lede { font-size: clamp(17px, 2.2vw, 19px); color: var(--muted); max-width: 62ch; margin: 0 0 14px; }
+  h2 { font-family: var(--display); font-weight: 800; font-size: clamp(27px, 4vw, 36px); line-height: 1; margin: 56px 0 14px; text-wrap: balance; }
+  h2::after { content: ""; display: block; width: 54px; height: 3px; margin-top: 10px; background: var(--floor); border-radius: 2px; }
+  h3 { font-family: var(--display); font-weight: 700; font-size: 21px; margin: 30px 0 8px; letter-spacing: .01em; }
+  p { margin: 0 0 15px; max-width: 68ch; }
+  code { font-family: var(--mono); font-size: .88em; background: var(--board-3); padding: 2px 6px; border-radius: 3px; color: var(--paper); }
+  a { color: var(--floor); }
+
+  /* the one correction worth leading with */
+  .correction { display: flex; gap: 14px; align-items: flex-start; margin: 26px 0 0;
+    padding: 16px 18px; background: var(--board-2); border-radius: 3px;
+    box-shadow: inset 0 0 0 1px var(--line); border-left: 3px solid var(--gold); }
+  .correction .mark { font-family: var(--display); font-weight: 900; font-size: 26px; color: var(--gold); line-height: 1; flex: none; }
+  .correction p { margin: 0; font-size: 15px; color: var(--muted); }
+  .correction b { color: var(--ink); font-weight: 600; }
+
+  .diagram { margin: 24px 0 8px; padding: 20px 14px; background: var(--board-2);
+    border-radius: 4px; box-shadow: inset 0 0 0 1px var(--line); overflow-x: auto; }
+  .diagram pre.mermaid { margin: 0; min-width: 640px; }
+  .cap { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+
+  .tbl { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 15px; }
+  .tbl th, .tbl td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .tbl th { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--floor); font-weight: 500; }
+  .tbl td:first-child { color: var(--ink); }
+  .tbl td:last-child { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .scroller { overflow-x: auto; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin: 18px 0; }
+  .card { background: var(--board-2); border-radius: 3px; padding: 15px 16px; box-shadow: inset 0 0 0 1px var(--line); min-width: 0; }
+  .card h4 { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--floor); margin: 0 0 6px; font-weight: 500; }
+  .card p { font-size: 14px; color: var(--muted); margin: 0; }
+
+  .pending { border-left: 3px solid var(--loss); }
+  .pending h4 { color: var(--loss); }
+
+  footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Big+Shoulders+Display:wght@700;800;900&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<div class="wrap">
+  <p class="eyebrow">The Trading Floor</p>
+  <h1>How the backend works</h1>
+  <p class="lede">A social platform for day traders, where every post is a real trade. One hosting provider, one backend, one scheduled job — and a database that does most of the deciding.</p>
+
+  <div class="correction">
+    <span class="mark" aria-hidden="true">!</span>
+    <p><b>Google does not host this.</b> Google appears only as a sign-in provider and as the owner of the YouTube API that clips come from. The site is hosted by <b>Vercel</b>; everything stateful is <b>Supabase</b>. Worth being exact about, since "Google Cloud" would describe a different system from the one actually running.</p>
+  </div>
+
+  <h2>The shape of it</h2>
+  <p class="cap">Solid arrows are live request paths. The dashed one is built but not yet switched on.</p>
+  <div class="diagram">
+<pre class="mermaid">
+%%{init: {'theme':'base','themeVariables':{'background':'#0C1F18','primaryColor':'#12291F','primaryTextColor':'#E6EDE7','primaryBorderColor':'#1D3A2F','lineColor':'#86998F','fontFamily':'Archivo, Arial, sans-serif','fontSize':'13px','clusterBkg':'#07140F','clusterBorder':'#1D3A2F'}}}%%
+flowchart TB
+  subgraph CLIENT["What the user runs"]
+    WEB["Browser<br/>plain HTML, CSS, JS<br/>no framework, no build"]
+    IOS["iOS app<br/>Capacitor shell,<br/>same files"]
+  end
+
+  subgraph GH["GitHub"]
+    REPO["The-Trading-Floor<br/>push to main deploys"]
+  end
+
+  subgraph VERCEL["Vercel &mdash; hosting only"]
+    STATIC["Static files from www/"]
+  end
+
+  subgraph SUPA["Supabase &mdash; the whole backend"]
+    AUTH["Auth<br/>email link + Google OAuth"]
+    PG[("Postgres<br/>21 tables, RLS on all")]
+    STORE["Storage<br/>media bucket, 50 MB cap"]
+    EDGE["Edge Function<br/>fetch-news (Deno)"]
+    CRON["pg_cron + pg_net<br/>every 15 minutes"]
+  end
+
+  subgraph OUT["Outside"]
+    GOOG["Google OAuth<br/>sign-in only"]
+    YT["YouTube Data API v3"]
+    RSS["Publisher RSS<br/>CNBC, FT, MarketWatch…"]
+    APNS["APNs"]
+  end
+
+  REPO -->|build-web.mjs| STATIC
+  REPO -->|cap sync| IOS
+  STATIC --> WEB
+  WEB -->|supabase-js| AUTH
+  IOS -->|system browser| AUTH
+  AUTH <--> GOOG
+  WEB -->|PostgREST, JWT per request| PG
+  WEB -->|signed upload| STORE
+  CRON -->|invoke| EDGE
+  EDGE --> YT
+  EDGE --> RSS
+  EDGE -->|upsert, dedup| PG
+  PG -.->|not wired up| APNS
+</pre>
+  </div>
+
+  <h2>Why the database decides</h2>
+  <p>The page is JavaScript on someone else's computer and can be edited in a console, so it is never the thing enforcing a rule. The client decides what to <em>draw</em>. The database decides what the client is <em>allowed to see</em>.</p>
+
+  <div class="scroller">
+  <table class="tbl">
+    <thead><tr><th>Rule</th><th>Where it is actually enforced</th></tr></thead>
+    <tbody>
+      <tr><td>A private account's trades stay hidden</td><td>can_view() → RLS policy on posts</td></tr>
+      <tr><td>Following a private account needs approval</td><td>follows_set_status trigger + policy</td></tr>
+      <tr><td>A hidden P/L reaches nobody but its author</td><td>posts_feed view returns null</td></tr>
+      <tr><td>Blocked people cannot see each other</td><td>posts_feed, both directions</td></tr>
+      <tr><td>Comments can be switched off</td><td>policy on comments</td></tr>
+      <tr><td>Profanity in handles and badges</td><td>name_violation(), SECURITY DEFINER</td></tr>
+      <tr><td>Headline ranking and topic tagging</td><td>news_topics(), news_feed view</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>The pattern repeats: a <b>view</b> shapes what a row looks like to the person reading it, an <b>RLS policy</b> decides whether they get the row at all, and a <b>trigger</b> stops the client sending something it shouldn't.</p>
+
+  <h2>What the client actually reads</h2>
+  <p>The app almost never selects from a base table. It reads views that already carry the joins, the counts and the per-viewer filtering.</p>
+  <div class="grid">
+    <div class="card"><h4>posts_feed</h4><p>Posts, author, like and comment counts, blocked people removed, P/L masked when its author keeps it private.</p></div>
+    <div class="card"><h4>news_feed</h4><p>Headlines with topics, is_market, matches_me and rank_at — the ranking, computed per reader.</p></div>
+    <div class="card"><h4>profiles_stats</h4><p>Profile plus follower, following and pending-request counts.</p></div>
+    <div class="card"><h4>clips_feed</h4><p>Creator Shorts with their like, save and comment counts.</p></div>
+    <div class="card"><h4>strategies_list</h4><p>Strategies with author, follower count and fork count.</p></div>
+    <div class="card"><h4>follow_requests</h4><p>Pending follows addressed to you, and nobody else.</p></div>
+  </div>
+
+  <h2>The one piece of server code</h2>
+  <p><code>fetch-news</code> is the only thing running server-side. Every fifteen minutes <code>pg_cron</code> calls it through <code>pg_net</code>, and it reads <code>news_sources</code> for what to pull, resolves each YouTube channel's real uploads playlist (the usual <code>UC</code>→<code>UU</code> shortcut is not reliable for every channel), keeps only Shorts for creators, parses publisher RSS for headlines, and upserts the lot. A trigger tags each row by topic as it lands.</p>
+  <p>The YouTube API key lives in Edge Function secrets and never reaches the client.</p>
+
+  <h3>What is public on purpose</h3>
+  <p>The Supabase key in <code>data.js</code> is the publishable key and is meant to be visible. It identifies the project, not the person. What any request may read or write is decided by the JWT that Auth issued and the policies on each table — never by holding that key.</p>
+
+  <h2>Built, not yet switched on</h2>
+  <div class="grid">
+    <div class="card pending"><h4>Push notifications</h4><p>Device tokens are collected and the app registers for them, but nothing sends one yet. Needs an Apple Developer account.</p></div>
+    <div class="card pending"><h4>Sign in with Apple</h4><p>Required at App Store review because Google sign-in is offered. Same blocker.</p></div>
+  </div>
+
+  <footer>Supabase project <code>grcldjuolszcidfitxgo</code> · 21 tables · 1 Edge Function · 1 scheduled job</footer>
+</div>

@@ -6,6 +6,11 @@ const compact = (n) => (n >= 1e4 ? (n / 1e3).toFixed(n >= 1e5 ? 0 : 1).replace(/
 const ago = (t) => { const m = Math.max(1, Math.round((Date.now() - t) / 6e4)); if (m < 60) return m + 'm'; const h = Math.round(m / 60); if (h < 24) return h + 'h'; return Math.round(h / 24) + 'd'; };
 const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'strategy';
 const plural = (n, one, many) => (n === 1 ? one : many || one + 's');
+/* Suggestions only. The symbol field takes any instrument, because people here
+   trade futures, equities, FX and crypto and no fixed list would cover it. */
+const SYM_SUGGEST = ['MES', 'MNQ', 'MGC', 'MCL', 'M6E', 'ES', 'NQ', 'YM', 'RTY', 'CL', 'GC', 'SI', 'ZN', 'ZB',
+  '6E', '6B', '6J', 'EURUSD', 'GBPUSD', 'USDJPY', 'XAUUSD', 'BTCUSD', 'ETHUSD',
+  'SPY', 'QQQ', 'IWM', 'AAPL', 'NVDA', 'TSLA', 'AMZN', 'MSFT', 'META', 'GOOGL'];
 /* The badge colours people can pick. Each has a matching .badge.t-<key> rule;
    adding one here and there is all it takes. */
 const TONES = [
@@ -68,6 +73,7 @@ const I = {
   back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 19l-7-7 7-7"/></svg>',
   shield: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
   spark: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>',
+  star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1.1 5.9L12 17l-5.3 2.7 1.1-5.9L3.5 9.7l5.9-.8z"/></svg>',
 };
 /* badge() takes anything with { badge, tone, avatar_path }: a profile, post or strategy row.
    A picture replaces the three letters; without one the letter badge is used. */
@@ -145,20 +151,21 @@ function openProfileSetup({ edit = false } = {}) {
   openModal(`<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="suH" style="width:min(560px,100%)"><header><h2 id="suH">Set up your profile</h2><button class="ib" data-act="close" aria-label="Close">${I.x}</button></header>
     <div class="su">
       <p class="su-lead">${edit ? 'Change how you appear on the floor.' : 'Pick a name, a handle and a three-letter badge. It goes on every trade you post, unless you add a picture.'}</p>
+      <p class="req-key">Fields marked <b class="req">*</b> are required. Everything else you can leave empty and add later.</p>
       <div class="su-row"><div class="su-pic" id="suPic">
           <div class="su-badge" id="suBadge">${esc((cur ? cur.badge : hint) || '???')}</div>
           <label class="su-picbtn" title="Choose a picture">${I.upload}<span class="sr">Upload a profile picture</span>
             <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" id="suFile" class="sr"></label>
         </div>
         <div class="su-fields">
-          <label class="field"><span>Display name</span><input class="input" id="suName" maxlength="40" autocomplete="name" placeholder="Arjun" value="${esc(cur ? cur.name : '')}"></label>
-          <label class="field"><span>Handle</span><input class="input" id="suHandle" maxlength="20" autocomplete="username" placeholder="arjun.trades" spellcheck="false" value="${esc(cur ? cur.handle : '')}" ${edit ? 'disabled title="Handles cannot be changed"' : ''}></label>
+          <label class="field"><span>Display name <b class="req" aria-hidden="true">*</b></span><input class="input" id="suName" maxlength="40" autocomplete="name" placeholder="Arjun" required aria-required="true" value="${esc(cur ? cur.name : '')}"></label>
+          <label class="field"><span>Handle <b class="req" aria-hidden="true">*</b></span><input class="input" id="suHandle" maxlength="20" autocomplete="username" placeholder="arjun.trades" spellcheck="false" required aria-required="true" value="${esc(cur ? cur.handle : '')}" ${edit ? 'disabled title="Handles cannot be changed"' : ''}>${edit ? '' : '<small class="hint">Letters, numbers, dots and underscores. This cannot be changed later.</small>'}</label>
           <button type="button" class="btn btn-line btn-sm su-rm" id="suRemovePic" ${cur && cur.avatar_path ? '' : 'hidden'}>Remove picture</button>
         </div></div>
-      <div class="g2"><label class="field"><span>Badge (3 letters)</span><input class="input su-badge-in" id="suBadgeIn" maxlength="3" value="${esc(cur ? cur.badge : hint)}" placeholder="ARJ" spellcheck="false" autocomplete="off"></label>
-        <div class="field"><span>Badge colour</span><div class="themes" role="group" aria-label="Badge colour">${TONES.map(([k, c, l]) => `<button type="button" class="su-tone" data-v="${k}" style="background:${c}" aria-label="${l}" aria-pressed="${k === su.tone}"></button>`).join('')}</div></div></div>
-      <div class="field"><span>Markets you trade (optional)</span><div class="su-markets">${Object.keys(SYMBOLS).map((m) => `<button type="button" class="chip su-mk" data-m="${m}" aria-pressed="${su.markets.has(m)}">${m}</button>`).join('')}</div></div>
-      <label class="field"><span>Bio (optional)</span><textarea class="input" id="suBio" maxlength="160" placeholder="What you trade and when">${esc(cur ? cur.bio : '')}</textarea></label>
+      <div class="g2"><label class="field"><span>Badge <b class="req" aria-hidden="true">*</b> <em class="opt">3 letters</em></span><input class="input su-badge-in" id="suBadgeIn" maxlength="3" value="${esc(cur ? cur.badge : hint)}" placeholder="ARJ" spellcheck="false" autocomplete="off"></label>
+        <div class="field"><span>Badge colour <em class="opt">optional</em></span><div class="themes" role="group" aria-label="Badge colour">${TONES.map(([k, c, l]) => `<button type="button" class="su-tone" data-v="${k}" style="background:${c}" aria-label="${l}" aria-pressed="${k === su.tone}"></button>`).join('')}</div></div></div>
+      <div class="field"><span>Markets you trade <em class="opt">optional</em></span><div class="su-markets">${Object.keys(SYMBOLS).map((m) => `<button type="button" class="chip su-mk" data-m="${m}" aria-pressed="${su.markets.has(m)}">${m}</button>`).join('')}</div></div>
+      <label class="field"><span>Bio <em class="opt">optional</em></span><textarea class="input" id="suBio" maxlength="160" placeholder="What you trade and when">${esc(cur ? cur.bio : '')}</textarea></label>
       <div class="err" id="suErr" role="alert"></div>
       <button class="btn btn-floor" id="suGo">${edit ? 'Save changes' : 'Save profile'}</button>
       ${edit ? `<button class="btn btn-line" data-act="close">Cancel</button>` : `<button class="btn btn-line" data-act="signout">Sign out</button>`}
@@ -355,13 +362,14 @@ function mediaHTML(p, { reel = false } = {}) {
   return `<img src="${esc(p.url)}" alt="Chart posted by ${esc(p.handle)}" loading="lazy">${tag}`;
 }
 const POSTS = new Map(); // posts currently on screen, by id
-function postHTML(p) {
+function postHTML(p, { suggested = false } = {}) {
   POSTS.set(p.id, p);
   const liked = state.liked.has(p.id); const saved = state.saved.has(p.id); const mine = ME && p.user_id === ME.id;
   const cm = p.comments.map((c) => `<div><a href="#/u/${esc(c.handle)}">${esc(c.handle)}</a>${esc(c.body)}</div>`).join('');
   const more = p.commentCount > p.comments.length ? `<button class="more-cmts" data-act="open-post" data-id="${p.id}">View all ${p.commentCount} comments</button>` : '';
   return `<article class="post" data-post="${p.id}">
-    <div class="post-h">${badge(p)}<div class="who"><a href="#/u/${esc(p.handle)}">${esc(p.handle)}</a><small>${esc(p.sym)} ${esc(p.tf)}, ${esc(p.session)} session</small></div>
+    <div class="post-h">${badge(p)}<div class="who"><a href="#/u/${esc(p.handle)}">${esc(p.handle)}</a><small>${suggested ? '<b class="sug-tag">Suggested</b> · ' : ''}${esc(p.sym)} ${esc(p.tf)}, ${esc(p.session)} session</small></div>
+      ${suggested && !mine ? followBtn(p.user_id === ME?.id ? p : { id: p.user_id, is_private: p.is_private }, 'btn-sm') : ''}
       ${p.strategy_id ? `<a class="strat-link" href="#/s/${p.strategy_id}">Strategy</a>` : ''}${mine
         ? `<button class="ib" data-act="del-post" data-id="${p.id}" aria-label="Delete post" title="Delete post">${I.x}</button>`
         : `<button class="ib" data-act="report-post" data-id="${p.id}" data-uid="${esc(p.user_id)}" aria-label="Report post" title="Report">${I.flag}</button>`}</div>
@@ -396,7 +404,11 @@ function hydrateMedia(root = document) {
 function destroyMedia() { if (_vio) { _vio.disconnect(); _vio = null; } }
 
 /* ============ SHELL ============ */
-const NAV = [['floor', 'The Floor', I.floor], ['replays', 'Replays', I.replay], ['news', 'News', I.news], ['explore', 'Explore', I.discover], ['builder', 'Strategy builder', I.builder], ['me', 'Profile', I.profile]];
+/* Strategies get a tab of their own: finding one is a different job from
+   browsing traders, and it was buried inside Explore. The builder moved under
+   it, since you only build after you have looked at what is there. */
+const NAV = [['floor', 'The Floor', I.floor], ['replays', 'Replays', I.replay], ['news', 'News', I.news],
+  ['explore', 'Explore', I.discover], ['discover', 'Strategies', I.builder], ['me', 'Profile', I.profile]];
 function shell(active, inner) {
   const links = NAV.map(([k, l, ic]) => `<a href="#/${k}" ${active === k ? 'aria-current="page"' : ''}>${ic}<span>${l}</span></a>`).join('');
   const tabs = NAV.map(([k, l, ic]) => `<a href="#/${k}" aria-label="${l}" ${active === k ? 'aria-current="page"' : ''}>${ic}</a>`).join('');
@@ -419,27 +431,42 @@ const loadingBlock = () => `<div class="loading" role="status" aria-live="polite
 const errorBlock = (msg) => emptyBlock('Could not load this.', esc(msg), `<button class="btn btn-floor" data-act="reload">Try again</button>`);
 
 /* ============ FEED ============ */
-let feedFilter = 'all', feedCursor = null, feedDone = false;
+let feedFilter = 'following', feedCursor = null, feedDone = false;
 async function feedView() {
   const f = feedFilter;
-  /* The Floor is only what people here have posted. Creator clips live in Replays. */
+  /* The Floor is a following feed, like Instagram's: your own trades and the
+     people you follow, and nothing else. Creator clips live in Replays.
+     Someone who follows nobody would otherwise face an empty page, so a thin
+     feed is topped up with real posts from active traders — always labelled
+     Suggested, never slipped in as though you already followed them. */
   const [{ rows, error }, tapeRes, rising] = await Promise.all([
     DB.posts({ filter: f }), DB.posts({ limit: 10, activity: true }), DB.strategies({ limit: 4 }),
   ]);
   if (error) return shell('floor', `<div class="page">${errorBlock(error)}</div>`);
   feedCursor = rows.length ? rows[rows.length - 1].created_at : null; feedDone = rows.length < 20;
+  let suggested = [];
+  if (f === 'following' && rows.length < 5 && ME) {
+    const s = await DB.posts({ filter: 'suggested', limit: 12 });
+    suggested = s.rows || [];
+  }
   const tape = tapeRes.rows;
-  const chips = [['all', 'For you'], ['following', 'Following'], ['photos', 'Photos'], ['videos', 'Videos'], ['wins', 'Wins'], ['losses', 'Losses']]
+  const chips = [['following', 'Following'], ['photos', 'Photos'], ['videos', 'Videos'], ['wins', 'Wins'], ['losses', 'Losses']]
     .map(([k, l]) => `<button class="chip" data-act="feed-filter" data-f="${k}" aria-pressed="${f === k}">${l}</button>`).join('');
   const tapeLi = tape.map((p) => `<li>${badge(p, 28)}<span><b>${esc(p.handle)}</b> ${p.tk.side} ${esc(p.sym)}</span><i class="${p.tk.pnl == null ? 'q' : p.tk.pnl > 0 ? 'w' : ''}">${money(p.tk.pnl)}</i></li>`).join('');
   const risingHTML = rising.map((s) => `<a class="mini-strat" href="#/s/${s.id}">${badge(s, 34)}<div><strong>${esc(s.title)}</strong><small>${esc(s.market)}, ${s.steps.length} steps, ${compact(s.followers)} following</small></div></a>`).join('');
   /* "quiet" means nothing to show at all, not merely an empty tape: everyone
      could have their activity switched off while still posting. */
-  const none = !tape.length && !rows.length && f === 'all';
+  const none = !tape.length && !rows.length && !suggested.length && f === 'following';
+  const sugBlock = suggested.length ? `<div class="sug-head">
+      <h2>Suggested</h2>
+      <p>${rows.length ? 'While you are following only a few people, here is what else the floor has been posting.' : 'You are not following anyone yet. These are real trades from people posting here — follow a few and this becomes your feed.'}</p>
+      <a class="btn btn-line btn-sm" href="#/explore">${I.discover}Find traders to follow</a>
+    </div>${suggested.map((p) => postHTML(p, { suggested: true })).join('')}` : '';
   const main = none
     ? emptyBlock('The floor is quiet.', 'Nobody has posted a trade yet. Upload a screenshot or a screen recording of a trade you took and yours will be the first thing everyone sees.', `<button class="btn btn-floor" data-act="compose">${I.plus}Post the first trade</button>`)
-    : rows.length ? rows.map(postHTML).join('') + (feedDone ? '' : `<div class="feed-more" id="feedMore">${loadingBlock()}</div>`)
-      : `<div class="empty">${f === 'following' ? 'No posts from people you follow yet.' : 'No posts match this filter yet.'}</div>`;
+    : rows.length || suggested.length
+      ? rows.map(postHTML).join('') + sugBlock + (feedDone || !rows.length ? '' : `<div class="feed-more" id="feedMore">${loadingBlock()}</div>`)
+      : `<div class="empty">${f === 'following' ? 'Nothing from the people you follow yet.' : 'No posts match this filter yet.'}</div>`;
   return shell('floor', `<div class="cols"><section aria-label="Feed">
       ${none ? '' : `<div class="feed-tabs" role="group" aria-label="Filter feed">${chips}</div>`}
       <div id="feedList">${main}</div>
@@ -650,13 +677,15 @@ async function replaysView() {
   let ci = 0;
   reels.forEach((r, i) => { mixed.push(r); if ((i + 1) % 2 === 0 && clips[ci]) mixed.push(clipReelHTML(clips[ci++])); });
   while (clips[ci]) mixed.push(clipReelHTML(clips[ci++]));
-  return shell('replays', `<div class="reels">${mixed.join('')}</div>`);
+  const hidden = state.hiddenCreators.size;
+  return shell('replays', `<div class="reels">${mixed.join('')}</div>
+    ${ME ? `<a class="reels-prefs" href="#/settings/creators" title="Choose which creators appear here">${I.gear}<span>Creators${hidden ? ` · ${hidden} hidden` : ''}</span></a>` : ''}`);
 }
 
 /* ============ NEWS ============ */
 /* Headlines and market video from public RSS feeds. Everything links back to
    the publisher; videos play in YouTube's own embedded player. */
-const news = { tab: 'video', source: 'All' };
+const news = { tab: 'video', source: 'All', market: true };
 let newsCursor = null, newsDone = false, _newsIO = null, _newsLoading = false;
 const NEWS_SRC = { video: ['All', 'Bloomberg Television', 'CNBC', 'Wall Street Journal', 'Financial Times', 'Fox News', 'NBC News', 'CBS News'],
                    article: ['All', 'CNBC', 'MarketWatch', 'Financial Times', 'Fox Business', 'Fox News', 'NBC News', 'CBS MoneyWatch'] };
@@ -669,13 +698,21 @@ function newsCard(n) {
       <span class="nlink">Read at ${esc(n.source)}${I.ext}</span></div></a>`;
 }
 async function newsView() {
-  const { rows, error } = await DB.news({ kind: news.tab, source: news.source });
+  const [{ rows, error }, myTopics] = await Promise.all([
+    DB.news({ kind: news.tab, source: news.source, market: news.market }),
+    news.tab === 'article' ? DB.myNewsTopics() : [],
+  ]);
   if (error) return shell('news', `<div class="page">${errorBlock(error)}</div>`);
-  newsCursor = rows.length ? rows[rows.length - 1].published_at : null; newsDone = rows.length < 24;
+  newsCursor = rows.length ? rows[rows.length - 1].cursor : null; newsDone = rows.length < 24;
   const tabs = [['video', 'Video'], ['article', 'Headlines']].map(([k, l]) => `<button class="chip" data-act="news-tab" data-t="${k}" aria-pressed="${news.tab === k}">${l}</button>`).join('');
   const srcs = NEWS_SRC[news.tab].map((s) => `<button class="chip" data-act="news-src" data-v="${esc(s)}" aria-pressed="${news.source === s}">${esc(s)}</button>`).join('');
+  const scope = news.tab === 'article'
+    ? `<div class="disc-chips" role="group" aria-label="What to show">
+        <button class="chip" data-act="news-scope" data-v="market" aria-pressed="${news.market}">Market news</button>
+        <button class="chip" data-act="news-scope" data-v="all" aria-pressed="${!news.market}">Everything</button></div>`
+    : '';
   const head = `<div class="news-head"><div class="feed-tabs" role="group" aria-label="News type">${tabs}</div>
-    <div class="disc-chips" role="group" aria-label="Source">${srcs}</div></div>`;
+    ${scope}<div class="disc-chips" role="group" aria-label="Source">${srcs}</div></div>`;
   if (!rows.length) return shell('news', `<div class="page">
     <div class="page-h"><div><h1>News</h1><p>Market video and headlines from the wires, refreshed every 15 minutes.</p></div></div>
     ${head}${emptyBlock('Nothing here yet.', 'The news feed refreshes every 15 minutes. If this stays empty, the sources may be temporarily unreachable.', '')}</div>`);
@@ -683,9 +720,16 @@ async function newsView() {
     return shell('news', `<div class="newswrap">${head}
       <div class="nreels" id="newsList">${rows.map(reelHTML).join('')}${newsDone ? '' : `<div class="feed-more" id="newsMore">${loadingBlock()}</div>`}</div></div>`);
   }
+  /* Say plainly how this list is ordered, rather than leaving people to guess
+     why one story is above another. */
+  const why = `<p class="news-why">${I.spark}
+    ${news.market
+      ? `Market news only. ${myTopics.length ? `Stories about <b>${myTopics.map(esc).join(', ')}</b> — the topics your markets map to — get a twelve-hour head start, then it is newest first.` : 'Newest first. Add the markets you trade to your profile and stories about them will come first.'}`
+      : 'Everything these wires publish, newest first, including the sport, crime and advice columns they also carry.'}
+    </p>`;
   return shell('news', `<div class="page">
     <div class="page-h"><div><h1>News</h1><p>Market headlines from the wires, refreshed every 15 minutes. Everything opens at the publisher.</p></div></div>
-    ${head}
+    ${head}${why}
     <div id="newsList"><div class="ngrid narts">${rows.map(newsCard).join('')}</div>${newsDone ? '' : `<div class="feed-more" id="newsMore">${loadingBlock()}</div>`}</div></div>`);
 }
 function watchNewsMore() {
@@ -694,13 +738,13 @@ function watchNewsMore() {
   const root = news.tab === 'video' ? $('.nreels') : null;
   _newsIO = new IntersectionObserver(async (es) => {
     if (!es[0].isIntersecting || _newsLoading || newsDone) return; _newsLoading = true;
-    const { rows } = await DB.news({ kind: news.tab, source: news.source, before: newsCursor });
+    const { rows } = await DB.news({ kind: news.tab, source: news.source, market: news.market, before: newsCursor });
     _newsLoading = false;
     const list = $('#newsList'); if (!list) return;
     const grid = news.tab === 'video' ? list : list.querySelector('.ngrid');
     $('#newsMore')?.remove();
     grid.insertAdjacentHTML('beforeend', rows.map(news.tab === 'video' ? reelHTML : newsCard).join(''));
-    newsCursor = rows.length ? rows[rows.length - 1].published_at : newsCursor; newsDone = rows.length < 24;
+    newsCursor = rows.length ? rows[rows.length - 1].cursor : newsCursor; newsDone = rows.length < 24;
     if (!newsDone) grid.insertAdjacentHTML('beforeend', `<div class="feed-more" id="newsMore">${loadingBlock()}</div>`);
     if (news.tab === 'video') watchReels();
     watchNewsMore();
@@ -802,7 +846,7 @@ function toggleNewsSound() {
    browse page: a grid of recent posts plus traders and strategies to follow. */
 const ex = { q: '', tab: 'top' };
 let _exT = null, _exToken = 0;
-const EX_TABS = [['top', 'Top'], ['traders', 'Traders'], ['videos', 'Videos'], ['posts', 'Posts'], ['strategies', 'Strategies']];
+const EX_TABS = [['top', 'Top'], ['trending', 'Trending'], ['traders', 'Traders'], ['videos', 'Videos'], ['posts', 'Posts'], ['strategies', 'Strategies']];
 /* Three states, not two: following, waiting on approval, or neither. */
 function followBtn(u, size = '') {
   const req = state.requested.has(u.id), fol = state.following.has(u.id);
@@ -810,13 +854,23 @@ function followBtn(u, size = '') {
   const cls = fol || req ? 'btn-line' : 'btn-floor';
   return `<button class="btn ${size} ${cls}" data-act="follow" data-uid="${u.id}">${label}</button>`;
 }
-function traderCard(u) {
+function traderCard(u, { trend = false } = {}) {
   const me = ME && u.id === ME.id;
+  const stat = trend
+    ? `${u.weekPosts} ${plural(u.weekPosts, 'post')} this week · ${compact(u.follower_count)} followers`
+    : `${compact(u.follower_count)} ${plural(u.follower_count, 'follower')}${u.markets && u.markets.length ? ' · ' + esc(u.markets.slice(0, 3).join(' ')) : ''}`;
   return `<div class="tcard">${badge(u, 56)}
     <div class="tinfo"><a href="#/u/${esc(u.handle)}"><strong>${esc(u.handle)}</strong></a>
       <small>${esc(u.name)}</small>
-      <span class="tstat">${compact(u.follower_count)} followers${u.markets && u.markets.length ? ' · ' + esc(u.markets.slice(0, 3).join(' ')) : ''}</span></div>
-    ${me ? '' : followBtn(u, 'btn-sm')}</div>`;
+      <span class="tstat">${stat}</span></div>
+    ${me ? '' : `${favBtn('profile', u.id)}${followBtn(u, 'btn-sm')}`}</div>`;
+}
+/* A favourite is a private bookmark, so it never tells the other person and
+   never changes what they see. Following is the public, visible act. */
+function favBtn(kind, id, label = false) {
+  const on = (kind === 'profile' ? state.favProfiles : state.favStrategies).has(id);
+  return `<button class="ib fav ${on ? 'on' : ''}" data-act="fav" data-kind="${kind}" data-id="${esc(id)}"
+    aria-pressed="${on}" aria-label="${on ? 'Remove from favourites' : 'Add to favourites'}" title="${on ? 'Remove from favourites' : 'Add to favourites'}">${I.star}${label ? `<span>${on ? 'Favourited' : 'Favourite'}</span>` : ''}</button>`;
 }
 const exRow = (title, body, more) => `<section class="exrow"><header><h2>${title}</h2>${more || ''}</header>${body}</section>`;
 async function exploreView() {
@@ -829,16 +883,21 @@ async function exploreView() {
   let body = '';
   if (!q) {
     // browse mode
-    const [posts, traders, strats] = await Promise.all([
+    const [posts, traders, strats, trending] = await Promise.all([
       DB.searchPosts('', { video: tab === 'videos', limit: 36 }),
       tab === 'top' || tab === 'traders' ? DB.topTraders(tab === 'traders' ? 24 : 6) : [],
       tab === 'top' || tab === 'strategies' ? DB.searchStrategies('', tab === 'strategies' ? 24 : 4) : [],
+      tab === 'top' || tab === 'trending' ? DB.trendingTraders(tab === 'trending' ? 24 : 6) : [],
     ]);
-    if (tab === 'traders') body = traders.length ? `<div class="tgrid">${traders.map(traderCard).join('')}</div>` : `<div class="empty">No traders yet.</div>`;
+    if (tab === 'trending') body = trending.length
+      ? `<p class="ex-note">${I.spark} Ranked on the last seven days: how much someone has posted, and how much people liked and replied to it. Different from Top, which is the all-time follower count.</p><div class="tgrid">${trending.map((u) => traderCard(u, { trend: true })).join('')}</div>`
+      : `<div class="empty">Nobody has posted in the last week, so there is nothing trending yet.</div>`;
+    else if (tab === 'traders') body = traders.length ? `<div class="tgrid">${traders.map(traderCard).join('')}</div>` : `<div class="empty">No traders yet.</div>`;
     else if (tab === 'strategies') body = strats.length ? `<div class="sgrid">${strats.map(scardHTML).join('')}</div>` : `<div class="empty">No strategies published yet.</div>`;
     else if (tab === 'videos' || tab === 'posts') body = posts.rows.length ? `<div class="thumbs exgrid">${posts.rows.map(thumbHTML).join('')}</div>` : `<div class="empty">Nothing posted yet.</div>`;
     else {
-      body = (traders.length ? exRow('Traders to follow', `<div class="tgrid">${traders.map(traderCard).join('')}</div>`, `<button class="btn btn-line btn-sm" data-act="ex-tab" data-t="traders">See all</button>`) : '')
+      body = (trending.length ? exRow('Trending this week', `<div class="tgrid">${trending.map((u) => traderCard(u, { trend: true })).join('')}</div>`, `<button class="btn btn-line btn-sm" data-act="ex-tab" data-t="trending">See all</button>`) : '')
+        + (traders.length ? exRow('Top traders', `<div class="tgrid">${traders.map(traderCard).join('')}</div>`, `<button class="btn btn-line btn-sm" data-act="ex-tab" data-t="traders">See all</button>`) : '')
         + (posts.rows.length ? exRow('Recent trades', `<div class="thumbs exgrid">${posts.rows.slice(0, 18).map(thumbHTML).join('')}</div>`, `<button class="btn btn-line btn-sm" data-act="ex-tab" data-t="posts">See all</button>`) : '')
         + (strats.length ? exRow('Strategies', `<div class="sgrid">${strats.map(scardHTML).join('')}</div>`, `<a class="btn btn-line btn-sm" href="#/discover">All filters</a>`) : '');
       if (!body) body = emptyBlock('Nothing to explore yet.', 'When traders sign up and post, their trades, profiles and strategies show up here.', `<button class="btn btn-floor" data-act="compose">${I.plus}Post the first trade</button>`);
@@ -928,7 +987,7 @@ function strategyHTML(s, { preview = false, used = [] } = {}) {
     <header class="sp-cover"><div class="meta"><span>${esc(s.market)}</span><span>${esc(s.session)} session</span><span>${esc(s.timeframe)}</span><span>${esc(s.style)}</span></div>
       <h1>${esc(s.title || 'Untitled strategy')}</h1><p class="tag">${esc(s.tagline)}</p>
       <div class="by">${badge(u, 44)}<div class="who"><a href="#/u/${esc(u.handle)}"><strong>${esc(u.handle)}</strong></a><small>${compact(s.followers || 0)} following, ${s.forks || 0} forks</small></div>
-      ${preview ? '' : mine ? `<a class="btn btn-floor" href="#/builder?edit=${s.id}">Edit strategy</a>` : `<button class="btn btn-floor" data-act="follow-strat" data-id="${s.id}" aria-pressed="${following}">${following ? 'Following' : 'Follow strategy'}</button><button class="btn btn-line" data-act="fork" data-id="${s.id}">Fork into builder</button>`}</div></header>
+      ${preview ? '' : mine ? `<a class="btn btn-floor" href="#/builder?edit=${s.id}">Edit strategy</a>` : `<button class="btn btn-floor" data-act="follow-strat" data-id="${s.id}" aria-pressed="${following}">${following ? 'Following' : 'Follow strategy'}</button><button class="btn btn-line ${state.favStrategies.has(s.id) ? 'on' : ''}" data-act="fav" data-kind="strategy" data-id="${s.id}" aria-pressed="${state.favStrategies.has(s.id)}">${I.star}${state.favStrategies.has(s.id) ? 'Favourited' : 'Favourite'}</button><button class="btn btn-line" data-act="fork" data-id="${s.id}">Fork into builder</button>`}</div></header>
     <div class="sp-stats"><div><b>${has(st.winRate) ? st.winRate + '%' : '–'}</b><small>Win rate</small></div><div><b>${has(st.avgR) ? st.avgR + 'R' : '–'}</b><small>Average winner</small></div><div><b>${has(st.sample) ? st.sample : '–'}</b><small>Trades logged</small></div>
       <div class="note">Numbers are reported by the author and are not verified by The Trading Floor.</div></div>
     <section class="sp-steps" aria-label="Steps">${steps}</section>
@@ -976,6 +1035,7 @@ async function profileView(h, isMeRoute = false) {
       <h1>${esc(u.name)}</h1><div class="h">@${esc(u.handle)}, badge ${esc(u.badge)}</div>${u.bio ? `<p>${esc(u.bio)}</p>` : ''}
       <div class="stats"><span><b>${posts.length}</b>${plural(posts.length, 'post')}</span>${shown.length ? `<span><b>${wins}/${shown.length}</b>${plural(shown.length, 'winner')}</span><span><b>${money(Math.round(net * 100) / 100)}</b>net P/L</span>` : ''}<span><b>${compact(u.follower_count)}</b>${plural(u.follower_count, 'follower')}</span><span><b>${compact(u.following_count)}</b>following</span><span><b>${strats.length}</b>${plural(strats.length, 'strategy', 'strategies')}</span></div>
       <div class="row">${me ? `<button class="btn btn-floor" data-act="compose">${I.plus}Post a trade</button><button class="btn btn-line" data-act="edit-profile">Edit profile</button><a class="btn btn-line" href="#/builder">New strategy</a><a class="btn btn-line" href="#/settings">${I.gear}Settings${u.pending_count ? `<span class="set-count">${u.pending_count}</span>` : ''}</a>` : `${followBtn(u)}
+        <button class="btn btn-line ${state.favProfiles.has(u.id) ? 'on' : ''}" data-act="fav" data-kind="profile" data-id="${u.id}" aria-pressed="${state.favProfiles.has(u.id)}">${I.star}${state.favProfiles.has(u.id) ? 'Favourited' : 'Favourite'}</button>
         <button class="btn btn-line" data-act="block" data-uid="${u.id}">${state.blocked.has(u.id) ? 'Unblock' : 'Block'}</button>
         <button class="btn btn-line" data-act="mute" data-uid="${u.id}">${state.muted.has(u.id) ? 'Unmute' : 'Mute'}</button>
         <button class="btn btn-line" data-act="report-profile" data-uid="${u.id}">${I.flag}Report</button>`}
@@ -996,6 +1056,8 @@ const SET_GROUPS = [
   ['requests', 'Follow requests', I.check, 'People waiting for you to let them in'],
   ['notifications', 'Notifications', I.bell, 'What you want to be told about'],
   ['saved', 'Saved', I.save, 'Posts and clips you kept for later'],
+  ['favourites', 'Favourites', I.star, 'Traders and strategies you keep to hand'],
+  ['creators', 'Creators in Replays', I.replay, 'Choose whose clips appear in your Replays feed'],
   ['blocked', 'Blocked accounts', I.block, 'People who cannot see or contact you'],
   ['muted', 'Muted accounts', I.mute, 'People you still follow but do not want in your feed'],
   ['display', 'Display', I.eye, 'Motion and what your own page shows'],
@@ -1088,6 +1150,33 @@ async function settingsView(sub) {
       <div class="set-note">${I.save} Only you can see this.</div>${body}</div>`);
   }
 
+  if (sub === 'favourites') {
+    const [people, strats] = await Promise.all([DB.favoriteProfiles(), DB.favoriteStrategies()]);
+    const body = (people.length || strats.length)
+      ? `${people.length ? `<h2 class="set-h2">Traders</h2><div class="set-people">${people.map((u) => `<div class="set-person">
+            ${badge(u, 44)}<div class="set-txt"><a href="#/u/${esc(u.handle)}"><b>@${esc(u.handle)}</b></a><small>${esc(u.name || '')}</small></div>
+            ${favBtn('profile', u.id)}</div>`).join('')}</div>` : ''}
+         ${strats.length ? `<h2 class="set-h2">Strategies</h2><div class="sgrid">${strats.map(scardHTML).join('')}</div>` : ''}`
+      : `<div class="empty">Nothing favourited yet. Tap the star on a trader or a strategy and it will be kept here.</div>`;
+    return shell('me', `<div class="page page-narrow">${head('Favourites')}
+      <div class="set-note">${I.star} Private to you. Favouriting someone does not follow them and they are never told.</div>${body}</div>`);
+  }
+
+  if (sub === 'creators') {
+    const sources = await DB.creatorSources();
+    const rows = sources.map((c) => {
+      const on = !state.hiddenCreators.has(c.source);
+      return `<label class="sw"><span><b>${esc(c.source)}</b><small>${c.count} ${plural(c.count, 'clip')} · newest ${ago(Date.parse(c.newest))} ago</small></span>
+        <input type="checkbox" data-act="creator-toggle" data-src="${esc(c.source)}" ${on ? 'checked' : ''}>
+        <i aria-hidden="true"></i></label>`;
+    }).join('');
+    const offCount = state.hiddenCreators.size;
+    return shell('me', `<div class="page page-narrow">${head('Creators in Replays')}
+      <div class="set-note">${I.replay} Clips come from these traders' public YouTube Shorts and always link back to their channel. Switching one off only changes your own Replays feed.</div>
+      ${sources.length ? rows : '<div class="empty">No creator clips have been pulled in yet.</div>'}
+      ${offCount ? `<p class="set-foot">${offCount} ${plural(offCount, 'creator')} hidden. Your Replays feed still shows replays posted by people on the site.</p>` : ''}</div>`);
+  }
+
   if (sub === 'about') {
     return shell('me', `<div class="page page-narrow">${head('About')}
       <div class="set-list">
@@ -1102,6 +1191,16 @@ async function settingsView(sub) {
   }
 
   return shell('me', `<div class="page page-narrow">${head('Settings')}<div class="empty">That settings page does not exist.</div></div>`);
+}
+
+/* Switching a creator off hides them from Replays for this account only. */
+async function saveCreatorChoice(input) {
+  const src = input.dataset.src, show = input.checked;
+  input.disabled = true;
+  const msg = await DB.setCreatorHidden(src, !show);
+  input.disabled = false;
+  if (msg) { input.checked = !show; toast(msg); return; }
+  toast(show ? `${src} is back in Replays` : `${src} hidden from Replays`);
 }
 
 /* A switch saves the moment it is flipped, and puts itself back if the save fails. */
@@ -1150,7 +1249,11 @@ async function openComposer() {
       <div class="drop-acts"><button class="btn btn-line btn-sm" data-act="cmp-clear" id="cmpClear" hidden>Remove file</button></div>
     </div>
     <div class="right">
-      <div class="g3"><label class="field"><span>Market</span><select class="input" data-k="sym">${Object.keys(SYMBOLS).map((k) => `<option ${k === cmp.sym ? 'selected' : ''}>${k}</option>`).join('')}</select></label>
+      <div class="g3"><label class="field"><span>Market <b class="req" aria-hidden="true">*</b></span>
+          <input class="input" data-k="sym" list="symList" value="${esc(cmp.sym)}" maxlength="12" autocomplete="off" spellcheck="false"
+                 placeholder="NQ, AAPL, BTCUSD…" aria-describedby="symHint">
+          <datalist id="symList">${SYM_SUGGEST.map((k) => `<option value="${esc(k)}">`).join('')}</datalist>
+          <small class="hint" id="symHint">Any instrument you trade. Pick one or type your own.</small></label>
         <label class="field"><span>Timeframe</span><select class="input" data-k="tf">${['1m', '2m', '5m', '15m', '1h'].map((k) => `<option ${k === cmp.tf ? 'selected' : ''}>${k}</option>`).join('')}</select></label>
         <label class="field"><span>Session</span><select class="input" data-k="session">${['Asia', 'London', 'New York'].map((k) => `<option ${k === cmp.session ? 'selected' : ''}>${k}</option>`).join('')}</select></label></div>
       <fieldset class="tk-set"><legend>Trade result</legend>
@@ -1198,6 +1301,11 @@ async function cmpPost() {
   if (cmp.busy) return;
   const err = $('#cmpErr'); const go = $('#cmpGo');
   if (!cmp.fileObj) return (err.textContent = 'Add a screenshot or screen recording of the trade.');
+  /* the symbol is free text now, so tidy and sanity-check it here */
+  cmp.sym = (cmp.sym || '').trim().toUpperCase().replace(/\s+/g, '');
+  if (!cmp.sym) return (err.textContent = 'Which market was this trade in? Type a ticker, for example NQ or AAPL.');
+  if (cmp.sym.length > 12) return (err.textContent = 'That ticker is too long. Keep it to 12 characters.');
+  if (!/^[A-Z0-9][A-Z0-9._/-]*$/.test(cmp.sym)) return (err.textContent = 'Tickers can use letters, numbers and . _ / - only.');
   const { amt, rr } = cmpNums();
   if (!isFinite(amt) || amt < 0) return (err.textContent = 'Enter the profit or loss as a dollar amount, for example 420. Use the Profit / Loss switch for the sign.');
   if (amt > 1e11) return (err.textContent = 'That amount is too large.');
@@ -1208,7 +1316,7 @@ async function cmpPost() {
   go.textContent = 'Posting...';
   const res = await DB.createPost({ media_path: up.path, media_type: cmp.ftype, sym: cmp.sym, tf: cmp.tf, session: cmp.session, side: cmp.side, pnl: cmp.result === 'loss' ? -amt : amt, rr, caption: cmp.caption.trim(), strategy_id: cmp.strategy || null });
   if (res.error) { cmp.busy = false; go.disabled = false; go.classList.remove('busy'); go.textContent = 'Post to the floor'; err.textContent = res.error; return; }
-  URL.revokeObjectURL(cmp.file); cmp = null; closeModal(); feedFilter = 'all';
+  URL.revokeObjectURL(cmp.file); cmp = null; closeModal(); feedFilter = 'following';
   if (location.hash === '#/floor') render(); else location.hash = '#/floor'; toast('Posted to the floor');
 }
 
@@ -1286,8 +1394,21 @@ async function publishDraft() {
 
 /* ============ EVENTS (delegated) ============ */
 function bump(sel, delta) { $$(sel).forEach((b) => { const s = b.querySelector('span'); if (s) s.textContent = compact(Math.max(0, (parseInt(s.textContent.replace(/[^0-9]/g, '')) || 0) + delta)); }); }
+/* Everything you can DO here needs an account: posting, reacting, following,
+   favouriting, reporting, building, changing your settings. Browsing does not.
+   The gate lives here, at the one place every action passes through, rather
+   than in each handler where a new one could quietly forget it. */
+const NEEDS_ACCOUNT = new Set([
+  'compose', 'cmp-post', 'cmp-clear', 'native-camera', 'native-photos',
+  'like', 'save', 'share-post', 'focus-cmt', 'del-post',
+  'clip-like', 'clip-save', 'open-clip',
+  'follow', 'follow-strat', 'fav', 'fork', 'block', 'mute', 'report-post', 'report-profile',
+  'req-yes', 'req-no', 'delete-account', 'edit-profile',
+  'bld-publish', 'bld-reset',
+]);
 document.addEventListener('click', async (e) => {
   const el = e.target.closest('[data-act]'); if (!el) return; const a = el.dataset.act; const id = el.dataset.id;
+  if (NEEDS_ACCOUNT.has(a) && !need()) return;
   const d = state.draft; const i = +el.dataset.i;
   switch (a) {
     case 'signin': openAuth(); break;
@@ -1317,6 +1438,7 @@ document.addEventListener('click', async (e) => {
     case 'feed-filter': feedFilter = el.dataset.f; render(); break;
     case 'news-tab': news.tab = el.dataset.t; news.source = 'All'; render(); break;
     case 'news-src': news.source = el.dataset.v; render(); break;
+    case 'news-scope': news.market = el.dataset.v === 'market'; render(); break;
     case 'news-mute': toggleNewsSound(); break;
     /* news belongs to the publisher, so sharing it sends people to them */
     case 'news-share': shareLink({ url: el.dataset.url, title: el.dataset.src, text: el.dataset.title }); break;
@@ -1341,6 +1463,17 @@ document.addEventListener('click', async (e) => {
       if (ME) ME.pending_count = Math.max(0, (ME.pending_count || 1) - 1);
       if (!$('.set-person')) $('.set-people')?.replaceWith(Object.assign(document.createElement('div'), { className: 'empty', textContent: 'No requests waiting.' }));
       toast(yes ? 'Approved' : 'Declined');
+      break;
+    }
+    case 'fav': {
+      if (!need()) break;
+      const kind = el.dataset.kind, id = el.dataset.id;
+      const set = kind === 'profile' ? state.favProfiles : state.favStrategies;
+      const on = !set.has(id);
+      $$(`[data-act="fav"][data-id="${id}"]`).forEach((b) => { b.setAttribute('aria-pressed', on); b.classList.toggle('on', on); });
+      const msg = await DB.setFavorite(kind, id, on);
+      if (msg) { toast(msg); $$(`[data-act="fav"][data-id="${id}"]`).forEach((b) => { b.setAttribute('aria-pressed', !on); b.classList.toggle('on', !on); }); break; }
+      toast(on ? 'Added to favourites' : 'Removed from favourites');
       break;
     }
     case 'block': toggleBlock(el.dataset.uid); break;
@@ -1428,6 +1561,7 @@ document.addEventListener('input', (e) => {
 document.addEventListener('change', (e) => {
   const t = e.target;
   if (t.dataset.act === 'setting') { saveSetting(t); return; }
+  if (t.dataset.act === 'creator-toggle') { saveCreatorChoice(t); return; }
   if (t.dataset.act === 'disc-m') { disc.market = t.value; renderDiscGrid(); }
   if (t.dataset.act === 'disc-s') { disc.sort = t.value; render(true); }
   if (t.dataset.s === 'kind' && state.draft) { state.draft.steps[+t.dataset.i].kind = t.value; renderPreview(); }
@@ -1442,7 +1576,7 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.
 /* ============ ROUTER ============ */
 let lastRoute = null, _tok = 0;
 function parseHash() { const h = location.hash.replace(/^#/, '') || '/'; const [path, qs] = h.split('?'); return { parts: path.split('/').filter(Boolean), params: new URLSearchParams(qs || '') }; }
-const ACTIVE = { p: 'floor', floor: 'floor', replays: 'replays', news: 'news', explore: 'explore', discover: 'explore', s: 'discover', u: 'discover', me: 'me', builder: 'builder', settings: 'me' };
+const ACTIVE = { p: 'floor', floor: 'floor', replays: 'replays', news: 'news', explore: 'explore', discover: 'discover', s: 'discover', u: 'explore', me: 'me', builder: 'discover', settings: 'me' };
 async function render(keepScroll = false) {
   const tok = ++_tok; const y = scrollY; const { parts, params } = parseHash(); const r = parts[0] || '';
   destroyReplays(); destroyMedia(); if (_moreIO) _moreIO.disconnect(); if (_newsIO) _newsIO.disconnect(); destroyReels(); stopClips(); Landing.destroy(); POSTS.clear();

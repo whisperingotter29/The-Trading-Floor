@@ -16,7 +16,7 @@ let ME = null;      // the signed-in person's profile row, null until they set o
 /* `following` holds accepted follows only. A follow of a private account sits in
    `requested` until they approve it, so the button can say "Requested" rather
    than claiming you are following someone who has not let you in. */
-const state = { liked: new Set(), saved: new Set(), clipLiked: new Set(), clipSaved: new Set(), following: new Set(), requested: new Set(), followedStrategies: new Set(), blocked: new Set(), muted: new Set(), draft: null };
+const state = { liked: new Set(), saved: new Set(), clipLiked: new Set(), clipSaved: new Set(), following: new Set(), requested: new Set(), followedStrategies: new Set(), blocked: new Set(), muted: new Set(), favProfiles: new Set(), favStrategies: new Set(), hiddenCreators: new Set(), draft: null };
 
 function dbError(error, fallback) {
   if (!error) return null;
@@ -44,7 +44,7 @@ const DB = {
     });
   },
   async loadMe() {
-    ME = null; state.liked.clear(); state.saved.clear(); state.clipLiked.clear(); state.clipSaved.clear(); state.following.clear(); state.requested.clear(); state.followedStrategies.clear(); state.blocked.clear(); state.muted.clear();
+    ME = null; state.liked.clear(); state.saved.clear(); state.clipLiked.clear(); state.clipSaved.clear(); state.following.clear(); state.requested.clear(); state.followedStrategies.clear(); state.blocked.clear(); state.muted.clear(); state.favProfiles.clear(); state.favStrategies.clear(); state.hiddenCreators.clear();
     if (!uid()) return;
     const { data } = await sb.from('profiles_stats').select('*').eq('id', uid()).maybeSingle();
     ME = data || null;
@@ -59,7 +59,7 @@ const DB = {
       ]);
       (f.data || []).forEach((r) => (r.status === 'pending' ? state.requested : state.following).add(r.following_id));
       (sf.data || []).forEach((r) => state.followedStrategies.add(r.strategy_id));
-      await Promise.all([DB.loadBlocks(), DB.loadMutes()]);
+      await Promise.all([DB.loadBlocks(), DB.loadMutes(), DB.loadFavorites(), DB.loadHiddenCreators()]);
     }
   },
   /* Inside the iOS app, sign-in pages can't load in the app's own webview
@@ -198,7 +198,16 @@ const DB = {
     if (filter === 'photos') q = q.eq('media_type', 'image');
     if (filter === 'wins') q = q.gt('pnl', 0);
     if (filter === 'losses') q = q.lt('pnl', 0);
+    /* The Floor is a following feed: your own posts and the people you follow.
+       Nothing else belongs in it. */
     if (filter === 'following') { const ids = [...state.following]; if (uid()) ids.push(uid()); if (!ids.length) return { rows: [] }; q = q.in('user_id', ids); }
+    /* Suggested fills a thin feed with real posts from traders you do NOT
+       follow. It is always labelled as suggested, never mixed in silently. */
+    if (filter === 'suggested') {
+      const skip = [...state.following, ...state.muted]; if (uid()) skip.push(uid());
+      if (skip.length) q = q.not('user_id', 'in', `(${skip.join(',')})`);
+      q = q.eq('show_activity', true);
+    }
     if (before) q = q.lt('created_at', before);
     const { data, error } = await q;
     if (error) return { rows: [], error: dbError(error, 'Could not load posts.') };
@@ -302,6 +311,25 @@ const DB = {
   async topTraders(limit = 12) {
     const { data } = await sb.from('profiles_stats').select('*').order('follower_count', { ascending: false }).limit(limit);
     return data || [];
+  },
+  /* Trending is about the last week, not all time: who has been posting and
+     getting a reaction lately. Top is the all-time follower count, so a quiet
+     veteran stays near the top there while a newcomer can trend. */
+  async trendingTraders(limit = 12) {
+    const since = new Date(Date.now() - 7 * 864e5).toISOString();
+    const { data } = await sb.from('posts_feed').select('user_id, like_count, comment_count')
+      .gte('created_at', since).eq('show_activity', true).limit(600);
+    const by = new Map();
+    (data || []).forEach((p) => {
+      const s = by.get(p.user_id) || { id: p.user_id, posts: 0, score: 0 };
+      s.posts++; s.score += 1 + (p.like_count || 0) + 2 * (p.comment_count || 0);
+      by.set(p.user_id, s);
+    });
+    const ranked = [...by.values()].sort((a, b) => b.score - a.score).slice(0, limit);
+    if (!ranked.length) return [];
+    const { data: people } = await sb.from('profiles_stats').select('*').in('id', ranked.map((r) => r.id));
+    const pm = new Map((people || []).map((p) => [p.id, p]));
+    return ranked.map((r) => ({ ...pm.get(r.id), weekPosts: r.posts, weekScore: r.score })).filter((p) => p.id);
   },
 
   /* ---------- safety: reporting, blocking, account deletion ---------- */
@@ -425,6 +453,65 @@ const DB = {
     return { rows };
   },
 
+  /* ---------- favourites ---------- */
+  /* Traders and strategies you want kept to hand. Private to you: nobody is
+     told they were favourited, which is what separates it from following. */
+  async loadFavorites() {
+    state.favProfiles.clear(); state.favStrategies.clear();
+    if (!uid()) return;
+    const { data } = await sb.from('favorites').select('kind, target_id').eq('user_id', uid());
+    (data || []).forEach((f) => (f.kind === 'profile' ? state.favProfiles : state.favStrategies).add(f.target_id));
+  },
+  async setFavorite(kind, targetId, on) {
+    const set = kind === 'profile' ? state.favProfiles : state.favStrategies;
+    const q = on ? sb.from('favorites').insert({ user_id: uid(), kind, target_id: targetId })
+                 : sb.from('favorites').delete().eq('user_id', uid()).eq('kind', kind).eq('target_id', targetId);
+    const { error } = await q;
+    if (error && error.code !== '23505') return dbError(error, 'Could not update your favourites.');
+    on ? set.add(targetId) : set.delete(targetId);
+    return null;
+  },
+  async favoriteProfiles() {
+    const ids = [...state.favProfiles]; if (!ids.length) return [];
+    const { data } = await sb.from('profiles_stats').select('*').in('id', ids);
+    return data || [];
+  },
+  async favoriteStrategies() {
+    const ids = [...state.favStrategies]; if (!ids.length) return [];
+    return DB.strategies({ ids });
+  },
+
+  /* ---------- which creators show up in Replays ---------- */
+  /* Only the ones switched OFF are stored, so a creator added later appears for
+     everyone instead of staying invisible until each person opts in. */
+  async loadHiddenCreators() {
+    state.hiddenCreators.clear();
+    if (!uid()) return;
+    const { data } = await sb.from('creator_hidden').select('source').eq('user_id', uid());
+    (data || []).forEach((r) => state.hiddenCreators.add(r.source));
+  },
+  async setCreatorHidden(source, hidden) {
+    const q = hidden ? sb.from('creator_hidden').insert({ user_id: uid(), source })
+                     : sb.from('creator_hidden').delete().eq('user_id', uid()).eq('source', source);
+    const { error } = await q;
+    if (error && error.code !== '23505') return dbError(error, 'Could not save that.');
+    hidden ? state.hiddenCreators.add(source) : state.hiddenCreators.delete(source);
+    return null;
+  },
+  /* Creators that actually have clips stored, newest first. A source can be
+     configured and still have pulled nothing, and a dead entry in the picker
+     would just be a switch that does nothing. */
+  async creatorSources() {
+    const { data } = await sb.from('clips_feed').select('source, published_at').eq('is_short', true).limit(1000);
+    const by = new Map();
+    (data || []).forEach((r) => {
+      const c = by.get(r.source) || { source: r.source, count: 0, newest: r.published_at };
+      c.count++; if (r.published_at > c.newest) c.newest = r.published_at;
+      by.set(r.source, c);
+    });
+    return [...by.values()].sort((a, b) => b.count - a.count);
+  },
+
   /* ---------- push notifications ---------- */
   /* A phone that allows notifications hands us a token; we keep one row per
      device so a follow or comment can be delivered to it later. */
@@ -441,9 +528,11 @@ const DB = {
   /* Public clips from trading channels, pulled by the scheduled function.
      They are shown as embedded YouTube videos credited to the channel,
      never as posts by a trader on this site. */
-  async creatorClips({ shortsOnly = false, limit = 20, before } = {}) {
+  async creatorClips({ shortsOnly = false, limit = 20, before, all = false } = {}) {
     let q = sb.from('clips_feed').select('*').order('published_at', { ascending: false }).limit(limit);
     if (shortsOnly) q = q.eq('is_short', true);
+    /* creators this person has switched off in Replays */
+    if (!all && state.hiddenCreators.size) q = q.not('source', 'in', `(${[...state.hiddenCreators].map((s) => `"${s.replace(/"/g, '')}"`).join(',')})`);
     if (before) q = q.lt('published_at', before);
     const { data, error } = await q;
     if (error) return { rows: [], error: dbError(error, 'Could not load creator clips.') };
@@ -495,14 +584,25 @@ const DB = {
   /* Headlines and video links pulled from public RSS feeds by a scheduled
      function. We store only title, link, thumbnail and a short summary, and
      always send people to the publisher to read or watch. */
-  async news({ kind, source, before, limit = 24 } = {}) {
-    let q = sb.from('news_items').select('*').order('published_at', { ascending: false }).limit(limit);
+  /* Headlines come from news_feed, which ranks them for whoever is reading:
+     a story on a topic you trade gets a twelve-hour head start over one that
+     does not, and after that recency wins again. `market` keeps out the sport,
+     crime and advice columns these wires also carry, which is most of what
+     they publish. Paging is keyset on rank_at so it cannot repeat or skip. */
+  async news({ kind, source, before, market = true, limit = 24 } = {}) {
+    let q = sb.from('news_feed').select('*').order('rank_at', { ascending: false }).limit(limit);
     if (kind) q = q.eq('kind', kind);
+    if (market) q = q.eq('is_market', true);
     if (source && source !== 'All') q = q.eq('source', source);
-    if (before) q = q.lt('published_at', before);
+    if (before) q = q.lt('rank_at', before);
     const { data, error } = await q;
     if (error) return { rows: [], error: dbError(error, 'Could not load the news.') };
-    return { rows: data.map((r) => ({ ...r, t: Date.parse(r.published_at) })) };
+    return { rows: data.map((r) => ({ ...r, t: Date.parse(r.published_at), cursor: r.rank_at })) };
+  },
+  /* the topics this person's markets map to, for explaining the ranking */
+  async myNewsTopics() {
+    const { data } = await sb.rpc('my_news_topics');
+    return data || [];
   },
   async newsSources() {
     const { data } = await sb.from('news_sources').select('label, kind, enabled').eq('enabled', true);
