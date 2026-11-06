@@ -42,11 +42,11 @@
 .drop-ic { width: 34px; height: 34px; stroke: var(--muted); fill: none; stroke-width: 1.6; margin: 0 auto 12px; display: block; }
 
 /* Reels: sound hint */
-.mute { position: absolute; right: 12px; top: 12px; font-size: 12px; font-weight: 600; background: rgba(7,20,15,.8); padding: 5px 9px; border-radius: var(--r); pointer-events: none; }
+.mute { position: absolute; right: 12px; top: 12px; font-size: 12px; font-weight: 600; background: rgba(11,23,48,.8); padding: 5px 9px; border-radius: var(--r); pointer-events: none; }
 .reel video { cursor: pointer; }
 
 /* Landing: phone mock for uploaded recordings, example tickets */
-.phone-empty { display: grid; place-items: center; background: repeating-linear-gradient(to bottom, transparent 0 39px, rgba(236,232,220,.04) 39px 40px), var(--board); }
+.phone-empty { display: grid; place-items: center; background: repeating-linear-gradient(to bottom, transparent 0 39px, rgba(244,235,218,.04) 39px 40px), var(--board); }
 .pe-drop { display: grid; justify-items: center; gap: 8px; text-align: center; padding: 20px; margin-top: -60px; }
 .pe-drop svg { width: 44px; height: 44px; stroke: var(--floor); fill: none; stroke-width: 1.5; }
 .pe-drop b { font-family: var(--display); font-weight: 800; font-size: 26px; }
@@ -88,7 +88,7 @@
 .more-cmts:hover { color: var(--ink); }
 .post-h .ib { flex: none; }
 .btn.busy { position: relative; overflow: hidden; }
-.btn.busy::after { content: ""; position: absolute; left: 0; bottom: 0; height: 3px; width: 40%; background: rgba(4,19,13,.45); animation: slide 1.1s linear infinite; }
+.btn.busy::after { content: ""; position: absolute; left: 0; bottom: 0; height: 3px; width: 40%; background: rgba(8,15,32,.45); animation: slide 1.1s linear infinite; }
 @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
 
 /* ============ NEWS ============ */
@@ -101,7 +101,7 @@ a.ncard:hover { border-color: var(--floor); transform: translateY(-2px); }
 .nthumb img { width: 100%; height: 100%; object-fit: cover; }
 .nthumb iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 button.nthumb { cursor: pointer; }
-.nplay { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(7,20,15,.78); display: grid; place-items: center; transition: background .2s, transform .2s var(--ease); }
+.nplay { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; background: rgba(11,23,48,.78); display: grid; place-items: center; transition: background .2s, transform .2s var(--ease); }
 .nplay svg { width: 22px; height: 22px; fill: var(--ink); stroke: none; margin-left: 3px; }
 .nvid:hover .nplay { background: var(--floor); transform: scale(1.08); }
 .nvid:hover .nplay svg { fill: var(--paper-ink); }

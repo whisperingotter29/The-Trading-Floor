@@ -4,14 +4,14 @@
   "webDir": "www",
   "ios": {
     "contentInset": "never",
-    "backgroundColor": "#07140fff",
+    "backgroundColor": "#0b1730ff",
     "limitsNavigationsToAppBoundDomains": false,
     "preferredContentMode": "mobile"
   },
   "plugins": {
     "SplashScreen": {
       "launchAutoHide": false,
-      "backgroundColor": "#07140f",
+      "backgroundColor": "#0b1730",
       "showSpinner": false
     },
     "PushNotifications": { "presentationOptions": ["badge", "sound", "alert"] },

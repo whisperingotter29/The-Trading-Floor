@@ -15,7 +15,7 @@
 
   const ready = async () => {
     try { await P.StatusBar?.setStyle({ style: 'DARK' }); } catch (e) {}
-    try { await P.StatusBar?.setBackgroundColor({ color: '#07140f' }); } catch (e) {}
+    try { await P.StatusBar?.setBackgroundColor({ color: '#0b1730' }); } catch (e) {}
     try { await P.SplashScreen?.hide(); } catch (e) {}
   };
   if (document.readyState === 'complete') ready();

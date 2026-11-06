@@ -14,10 +14,10 @@ const SYM_SUGGEST = ['MES', 'MNQ', 'MGC', 'MCL', 'M6E', 'ES', 'NQ', 'YM', 'RTY',
 /* The badge colours people can pick. Each has a matching .badge.t-<key> rule;
    adding one here and there is all it takes. */
 const TONES = [
-  ['floor', '#18A583', 'Phthalo green'], ['cyan', '#2FC8C0', 'Cyan'], ['sky', '#4EA8F5', 'Sky blue'],
-  ['violet', '#A97BF0', 'Violet'], ['crimson', '#E5484D', 'Crimson'], ['coral', '#FF7A59', 'Coral'],
-  ['amber', '#F0883C', 'Amber'], ['gold', '#E8B647', 'Gold'], ['lime', '#9BD44B', 'Lime'],
-  ['paper', '#EFE9D8', 'Ticket paper'], ['board', '#12291F', 'Dark board'],
+  ['floor', '#FF7B61', 'Coral'], ['cyan', '#4A6CA8', 'Harbour blue'], ['sky', '#7C9CD6', 'Steel blue'],
+  ['violet', '#A3B1DA', 'Dusk'], ['crimson', '#C4553F', 'Brick'], ['coral', '#FFA08C', 'Salmon'],
+  ['amber', '#F6B48F', 'Peach'], ['gold', '#EBCB94', 'Sand'], ['lime', '#D8CBAE', 'Oat'],
+  ['paper', '#F3E8D2', 'Cream'], ['board', '#182A4C', 'Navy'],
 ];
 /* null means the trader keeps the figure private, which is not the same as zero */
 const money = (n) => n == null ? 'Private' : (n > 0 ? '+' : n < 0 ? '−' : '') + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: Math.abs(n) % 1 ? 2 : 0, maximumFractionDigits: 2 });
@@ -374,7 +374,7 @@ function postHTML(p, { suggested = false } = {}) {
         ? `<button class="ib" data-act="del-post" data-id="${p.id}" aria-label="Delete post" title="Delete post">${I.x}</button>`
         : `<button class="ib" data-act="report-post" data-id="${p.id}" data-uid="${esc(p.user_id)}" aria-label="Report post" title="Report">${I.flag}</button>`}</div>
     <div class="media" data-act="dbl-like" data-id="${p.id}">${mediaHTML(p)}
-      <svg class="heart" viewBox="0 0 24 24" aria-hidden="true"><path fill="#18A583" d="M12 20s-7-4.4-8.7-8.9A4.6 4.6 0 0 1 12 7.6a4.6 4.6 0 0 1 8.7 3.5C19 15.6 12 20 12 20z"/></svg></div>
+      <svg class="heart" viewBox="0 0 24 24" aria-hidden="true"><path fill="#FF7B61" d="M12 20s-7-4.4-8.7-8.9A4.6 4.6 0 0 1 12 7.6a4.6 4.6 0 0 1 8.7 3.5C19 15.6 12 20 12 20z"/></svg></div>
     <div class="acts">
       <button class="act" data-act="like" data-id="${p.id}" aria-pressed="${liked}" aria-label="Like">${I.heart}<span>${compact(p.likes)}</span></button>
       <button class="act" data-act="focus-cmt" data-id="${p.id}" aria-label="Comment">${I.comment}<span>${p.commentCount}</span></button>
@@ -1345,7 +1345,7 @@ function renderBuilder() {
         <label class="field"><span>Session</span><select class="input" data-d="session">${opt(['Asia', 'London', 'New York', 'Any'], d.session)}</select></label>
         <label class="field"><span>Timeframe</span><input class="input" data-d="timeframe" maxlength="20" value="${esc(d.timeframe)}"></label>
         <label class="field"><span>Style</span><select class="input" data-d="style">${opt(['ICT', 'Auction', 'Order flow', 'Breakout', 'Mean reversion', 'Momentum'], d.style)}</select></label></div>
-      <div class="field"><span>Page look</span><div class="themes" role="group" aria-label="Page look">${[['floor', '#18A583', 'Phthalo green'], ['paper', '#EFE9D8', 'Ticket paper'], ['board', '#0C1F18', 'Dark board']].map(([k, c, l]) => `<button type="button" data-act="theme" data-v="${k}" style="background:${c}" aria-label="${l}" aria-pressed="${d.theme === k}"></button>`).join('')}</div></div></div>
+      <div class="field"><span>Page look</span><div class="themes" role="group" aria-label="Page look">${[['floor', '#FF7B61', 'Coral'], ['paper', '#F3E8D2', 'Cream'], ['board', '#11203D', 'Navy']].map(([k, c, l]) => `<button type="button" data-act="theme" data-v="${k}" style="background:${c}" aria-label="${l}" aria-pressed="${d.theme === k}"></button>`).join('')}</div></div></div>
     <div class="bld-sec"><header><h2>Steps</h2><span class="sub">${d.steps.length} of 12</span></header>
       ${d.steps.map((st, i) => stepEditor(st, i, d.open === i)).join('')}
       ${d.steps.length < 12 ? `<div class="field"><span>Add a step</span><div class="addstep">${KINDS.map((k) => `<button type="button" data-act="add-step" data-k="${k}">${k}</button>`).join('')}</div></div>` : ''}</div>
