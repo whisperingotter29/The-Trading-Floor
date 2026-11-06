@@ -1,39 +1,45 @@
-# MVP checkpoint requirements (2 x screen recording, 5-6 min each)
+# Checkpoint 2: MVP screen recording (5-6 minutes)
 
-I did not have your actual rubric, so this is a draft. Tell me the real checkpoint wording and I will align it.
+## Requirements
+- [ ] One continuous screen recording, **5:00 to 6:00** long, MP4, 1080p or better, with your voice over it.
+- [ ] Recorded on **staging** (https://the-trading-floor-git-staging-arjun-s-projects12.vercel.app), never the live site, so test posts stay out of production.
+- [ ] Shows the full core loop working end to end: sign up, post a trade, see it in the feed, get a like and a comment from a second account.
+- [ ] Shows what makes it more than a feed: a published strategy, discovery, privacy and safety controls.
+- [ ] States the problem, who it is for, what is not built yet, and how testers give feedback (the Google Form).
+- [ ] No keys, passwords, inbox contents or personal emails visible on screen.
 
-## Checkpoint 1: Core loop (target 5:30)
-Goal: show a stranger can join, post a trade and be seen.
+## Before you press record
+1. **Two staging accounts.** Staging is a separate database, so live accounts do not exist there.
+   - Email sign-in on staging only delivers to members of your Supabase organisation until custom SMTP is set up (see the runbook). Use your own email for account A.
+   - For account B, either invite a second email to the Supabase organisation, turn on custom SMTP, or enable Google sign-in on the staging project.
+   - Finish both profiles first. Pick a badge colour from Coral, Cream or Navy: the other 8 do not save yet (GitHub issue).
+2. **Media ready:** two chart screenshots (PNG) and one screen recording of a trade (MP4, under 50 MB).
+3. **A strategy outline** of 3-4 steps you can type quickly, with one step screenshot.
+4. **Browser:** account A in a normal window, account B in a private window. Hide bookmarks, close other tabs, turn on Do Not Disturb, zoom to 100%.
+5. **Feedback form link** open in a tab for the last scene.
+6. Do one timed dry run. Delete the dry-run posts afterwards so the feed is clean.
+
+## Script (target 5:30)
 
 | Time | Show | Say |
 |---|---|---|
-| 0:00-0:30 | Landing page, opening bell, scroll scene | Problem: day traders post P/L with no structure or accountability. The Trading Floor = trades + the strategy behind them |
-| 0:30-1:30 | Sign in (Google or email code), profile setup (handle, badge, picture) | Two-step onboarding |
-| 1:30-3:15 | Post a trade: screenshot, then a screen recording; profit/loss, R:R, strategy | Required vs optional fields, 50 MB limit |
-| 3:15-4:15 | The Floor feed: filters, like, comment, save, share | Social loop |
-| 4:15-5:00 | Second account (private window): follow, comment | Two-user interaction |
-| 5:00-5:30 | Profile page and stats | Recap + what is next |
+| 0:00-0:25 | Landing page: opening bell, candle scene | "Day traders share P/L screenshots with no context. The Trading Floor shows the trade *and* the strategy behind it." |
+| 0:25-1:05 | Account A: Join, email code, profile setup (handle, badge, markets, picture) | Sign-in first, profile second; handles are permanent; profanity filter on names. |
+| 1:05-2:00 | Post a trade: screenshot, market, timeframe, long, P/L, R:R, caption, live preview, post | Required vs optional fields; 50 MB uploads; the ticket shows how it will look. |
+| 2:00-2:25 | Post a second trade with the screen recording; open Replays | Recordings become a vertical Replays feed, with credited creator clips between them. |
+| 2:25-3:05 | Account B (private window): follow A, like, comment | Two real users interacting. |
+| 3:05-3:30 | Back to A: The Floor (following feed), the comment, the like count | The social loop closes. |
+| 3:30-4:25 | Strategy builder: 3 steps, checklist, step screenshot, live preview, publish; open the strategy page | A strategy is its own page; others follow or fork it. |
+| 4:25-4:50 | Explore (Trending) and Discover; News headlines ranked by your markets | How people find traders, strategies and market news. |
+| 4:50-5:15 | Settings: private account and hide P/L; on B, report a post and block (cancel the delete-account dialog) | Privacy and safety, needed for the App Store. |
+| 5:15-5:30 | Feedback form link; "not built yet" list from `docs/V1_FEATURES.md` | Ask for testers; what comes next. |
 
-Pass criteria: sign-up works end to end; a post with media appears in the feed; a like and a comment from a second account appear without refresh problems.
+## Check before you submit
+- [ ] Length between 5:00 and 6:00.
+- [ ] The post from A appears in the feed with its media; B's like and comment show on A's side.
+- [ ] The published strategy opens and shows in Discover.
+- [ ] Audio is clear all the way through; nothing private is visible on screen.
 
-## Checkpoint 2: Strategies, discovery and safety (target 5:30)
-Goal: show what makes it more than a feed.
-
-| Time | Show | Say |
-|---|---|---|
-| 0:00-0:30 | Recap of checkpoint 1 | What changed since |
-| 0:30-2:30 | Strategy builder: 3+ steps, checklist, screenshot, live preview, publish | Strategy as its own page |
-| 2:30-3:15 | Strategy page: follow, fork, trades using it | Network effect |
-| 3:15-4:00 | Explore + Discover search and filters | Finding content |
-| 4:00-4:40 | Replays and News (video + headlines) | Daily-return content |
-| 4:40-5:15 | Report a post, block a user, delete account screen (do not confirm) | Safety, App Store 1.2 / 5.1.1 |
-| 5:15-5:30 | Feedback form QR / link and roadmap | Ask for testers |
-
-Pass criteria: published strategy visible in Discover; fork creates an editable copy; report and block both succeed.
-
-## Recording checklist
-- Use the staging site, not production. Reset test data first.
-- Two accounts ready (A = main, B = private window). 1080p, mic check, close notifications.
-- Pre-stage: 2 screenshots, one MP4 under 50 MB, one strategy draft text.
-- Hide the browser bookmarks bar and any keys or emails.
-- Keep each recording between 5:00 and 6:00; do one dry run with a timer.
+## Recording tools
+- Mac: Cmd+Shift+5, then "Record Selected Portion", with Options set to your microphone. Saves a .mov; QuickTime's File, Export As 1080p gives an MP4.
+- iPhone app (optional cut-in): boot the simulator, run the app, then `xcrun simctl io booted recordVideo ~/Desktop/app.mp4` and Ctrl+C to stop.

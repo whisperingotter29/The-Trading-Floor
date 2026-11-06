@@ -1,60 +1,81 @@
-# The Trading Floor v1: functionality inventory
+# The Trading Floor v1: what it does
 
-Source: code review of `main` (commit 4abe4ba). Stack: static HTML/CSS/JS, hash routing, GSAP, Supabase (auth, Postgres + RLS, storage, Edge Function `fetch-news`, pg_cron), Vercel hosting, Capacitor iOS wrapper (`app.thetradingfloor.ios`).
+v1 is everything on the `staging` branch as of 2026-11-06. Most of it is live; anything marked **(staging)** is built but not yet on the live site.
+
+| | Live site | Staging |
+|---|---|---|
+| URL | https://the-trading-floor-green.vercel.app | https://the-trading-floor-git-staging-arjun-s-projects12.vercel.app |
+| Branch | `main` (4abe4ba) | `staging` |
+| Database | Supabase `grcldjuolszcidfitxgo` | Supabase `oekffltpjxnpmzbqnwvk` (separate accounts and posts) |
+
+Stack: static HTML/CSS/JS with hash routing and GSAP; Supabase for auth, Postgres with row level security, storage, the `fetch-news` Edge Function and pg_cron; Vercel hosting; Capacitor 7 iOS wrapper (`app.thetradingfloor.ios`).
 
 ## Accounts and profile
-- Sign in with Google (OAuth, PKCE) or emailed magic link / 6-digit code.
-- Two-step onboarding: sign in, then profile setup (display name, handle 3-20 chars, 3-letter badge, badge colour, markets traded, bio up to 160).
-- Handles are permanent; other fields editable. Profanity filter on handle, name, badge (DB trigger).
-- Optional profile picture (square-cropped, 512px WebP, replaces badge); remove picture.
-- Sign out; self-serve account deletion (type handle to confirm, `delete_my_account` RPC).
-- Sign-in gate: any write action prompts sign-in / profile setup, then resumes the action.
+- Sign in with Google (OAuth, PKCE) or an emailed link / 6-digit code. Sign-in first, then profile setup.
+- Profile: display name, handle (3-20 chars, permanent), three-letter badge, badge colour, markets traded, bio (160 chars). Required fields marked with a red asterisk **(staging)**.
+- Optional profile picture: square-cropped, shrunk to 512px WebP in the browser, replaces the badge.
+- Profanity filter on handle, display name and badge (database trigger). Captions, comments and strategy text are not filtered.
+- Browsing needs no account. Every write action (27 of them) goes through one sign-in gate and resumes after sign-in **(gate centralised on staging)**.
+- Sign out; self-serve account deletion (type your handle to confirm).
 
 ## The Floor (`#/floor`)
-- Feed of user trade posts, newest first, infinite scroll (20 per page).
+- Feed of trade posts, 20 at a time with infinite scroll.
+- **(staging)** A following feed: your own trades and people you follow. When that is thin it is topped up with labelled "Suggested" posts, each with a Follow button.
 - Filters: For you, Following, Photos, Videos, Wins, Losses.
-- Post card: badge, handle, market + timeframe + session, media, ticket strip (side, risk:reward, P/L stamp), caption, recent comments, time ago.
-- Like (with double-tap heart), save (private), comment (280 chars), share (native share / copy link), delete own post, report other posts.
-- Side panel: "The tape" (latest trades ticker), rising strategies.
-- Deep link to a post: `#/p/:id`.
+- Post card: badge or picture, handle, market, timeframe, session, media, ticket strip (side, risk:reward, P/L stamp), caption, recent comments, time ago.
+- Like (and double-tap like), private save, comment (280 chars), share (native share or copy link), delete your own post, report someone else's.
+- Side panel: "The tape" (latest trades) and rising strategies. Deep link to a post: `#/p/:id`.
 
-## Post a trade (composer)
-- Upload screenshot (PNG/JPG/GIF/WebP) or screen recording (MP4/MOV/WebM), 50 MB cap, drag and drop.
-- Fields: market, timeframe (1m-1h), session (Asia/London/New York), long/short, profit/loss in dollars, optional risk:reward, strategy used, caption (600 chars).
-- Live "shows on your post as" preview; validation messages.
-- iOS app: camera and photo-library buttons.
+## Post a trade
+- Upload a screenshot (PNG/JPG/GIF/WebP) or screen recording (MP4/MOV/WebM), up to 50 MB, with drag and drop.
+- Market (free text with suggestions **(staging)**), timeframe, session (Asia/London/New York), long or short, P/L in dollars, optional risk:reward, strategy used, caption (600 chars).
+- Live preview of how the post will look; inline validation.
+- iOS app: camera and photo library buttons.
 
 ## Replays (`#/replays`)
-- Vertical snap feed of uploaded screen recordings, autoplay when in view, tap for sound.
-- Creator clips (YouTube Shorts) interleaved after every two user replays; credited to channel, tagged YouTube, linked out; like/save/comment on this site, share link to YouTube.
+- Vertical snap feed of uploaded screen recordings: autoplay in view, tap for sound, pause, sound preference remembered.
+- Creator clips (YouTube Shorts from trading channels) after every two user replays, credited to the channel, tagged YouTube and linked out; like, save and comment here, share links to YouTube.
+- **(staging)** Creator picker: switch individual creators off, from the feed or Settings.
 
 ## News (`#/news`)
-- Video tab (vertical reels, YouTube embeds that mount only when on screen, sound toggle) and Headlines tab (cards linking to publisher).
-- Source filter chips (Bloomberg, CNBC, WSJ, FT, Fox, NBC, CBS, MarketWatch ...).
-- Fed every 15 min from public RSS by the `fetch-news` Edge Function.
+- Video tab (vertical reels; YouTube players mount only on screen) and Headlines tab (cards linking to the publisher).
+- Source filter chips (Bloomberg, CNBC, WSJ, FT, Fox, NBC, CBS, MarketWatch).
+- Refreshed every 15 minutes from public RSS and the YouTube Data API by the `fetch-news` function.
+- **(staging)** Headlines tagged by topic; market news by default with an Everything switch; stories matching the markets on your profile rank up to 12 hours higher, and the page explains why.
 
 ## Explore (`#/explore`)
-- Search traders, trades and strategies; tabs Top / Traders / Videos / Posts / Strategies.
-- Browse mode when empty: traders to follow, recent trades grid, strategies.
-- Debounced live search, follow buttons on trader cards.
+- Search traders, trades and strategies; tabs Top, Traders, Videos, Posts, Strategies; debounced live search; follow from results.
+- Browse mode when the box is empty: traders to follow, recent trades grid, strategies.
+- **(staging)** Trending (last 7 days, weighted by posts, replies and likes) next to Top.
 
 ## Strategies
-- Discover (`#/discover`): search, market filter, style chips, sort (most followed / newest / most forked).
-- Strategy page (`#/s/:id`): cover, author, author-reported stats (win rate, avg R, sample, flagged unverified), numbered steps with checklists and example screenshots, trades that used it, follow, fork.
-- Builder (`#/builder`): up to 12 steps (Setup, Trigger, Entry, Stop, Target, Management, Rule), reorder, delete, checklists, image per step, 3 page themes, live preview, draft survives sign-in, edit own, fork others, publish.
+- Discover (`#/discover`): search, market filter, style chips, sort by most followed, newest or most forked. **(staging)** Its own nav tab.
+- Strategy page (`#/s/:id`): cover, author, self-reported stats flagged as unverified, numbered steps with checklists and example screenshots, trades that used it, follow, fork.
+- Builder (`#/builder`): up to 12 steps (Setup, Trigger, Entry, Stop, Target, Management, Rule), reorder, delete, checklists, an image per step, 3 page looks, live preview, draft survives sign-in, edit your own, fork others, publish.
 
-## Profiles (`#/u/:handle`, `#/me`)
-- Stats (posts, winners, net P/L, followers, following, strategies), tabs Posts / Replays / Strategies, follow, edit profile.
+## Profiles (`#/me`, `#/u/:handle`)
+- Stats (posts, winners, net P/L, followers, following, strategies); tabs Posts, Replays, Strategies; follow; edit profile.
+- **(staging)** Favourites: privately bookmark traders and strategies.
 
-## Safety and compliance
-- Report post, comment or trader (8 reasons + detail), block / unblock (applied inside read views), account deletion.
-- Terms page, Privacy page, legal footer disclaimer "not financial advice".
+## Settings (`#/settings`) **(staging)**
+- Account privacy: private account with follow requests to approve; hide your P/L; who can comment (everyone, followers, nobody); show activity.
+- Follow requests, notification preferences, saved posts and clips, blocked and muted accounts, display (reduce motion), about.
+- Remove a follower; mute (hides someone from your feed without blocking).
+
+## Safety and legal
+- Report a post, comment or trader (8 reasons plus detail); block and unblock, applied both ways in every feed; account deletion.
+- Terms and Privacy pages; "not financial advice" footer.
 
 ## Landing (`#/`)
-- Opening-bell preloader, candle chart scene (GSAP), strategy book, replays demo, badge picker, page-transition shutter.
+- Opening-bell preloader, GSAP candle-chart scene, strategy book, replays demo, badge picker, page-transition shutter.
 
-## iOS wrapper (Capacitor)
-- Status bar, splash, back gesture, system-browser OAuth with deep-link return, native share, camera/photos, push token capture (`push_tokens` table; no sender implemented yet).
+## iOS app (Capacitor)
+- Status bar and splash, back gesture through app history, outside links in the system browser, Google sign-in through the system browser with a deep-link return, native share, camera and photo library, haptics.
+- Push: registers the device token (`push_tokens`). Push Notifications and Background Modes (remote notifications) capabilities are on. Nothing sends pushes yet.
 
-## Not in v1 (so you do not demo them)
-- No DMs, no notifications UI, no in-app admin / moderation queue, no verified P/L, no brokerage connection, no payments, no push sending.
+## Look **(staging)**
+- Navy, cream and coral: navy surfaces, cream type and trade tickets, coral for buttons, the active section and likes. Green and red are kept only for profit and loss.
+
+## Not in v1 (do not demo these)
+- Direct messages, an in-app notifications screen, a moderation queue, verified P/L or broker connections, payments, or actually sending push notifications.
+- Known bugs are tracked in GitHub issues.
