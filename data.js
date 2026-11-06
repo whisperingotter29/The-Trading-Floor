@@ -1,8 +1,17 @@
 /* ============ BACKEND (Supabase) ============ */
 /* The publishable key is meant to be public. What anyone can read or write is
    decided by the row level security rules in the database, not by this key. */
-const SUPABASE_URL = 'https://grcldjuolszcidfitxgo.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_cfJe5103VSlxakj3FvsJzg_mAH7uQIH';
+/* Staging is a separate project with its own accounts and posts, so nothing tried
+   there reaches the live site. The live domain is pinned to production no matter
+   what env.js says. */
+const BACKENDS = {
+  production: { url: 'https://grcldjuolszcidfitxgo.supabase.co', key: 'sb_publishable_cfJe5103VSlxakj3FvsJzg_mAH7uQIH' },
+  staging: { url: 'https://oekffltpjxnpmzbqnwvk.supabase.co', key: 'sb_publishable_ASwy-kcy1iB3-JavmSas7g_6IjCCiEa' },
+};
+const PRODUCTION_HOSTS = ['the-trading-floor-green.vercel.app'];
+const TF_ENV = PRODUCTION_HOSTS.includes(location.hostname) ? 'production' : (window.TF_ENV === 'production' ? 'production' : 'staging');
+const SUPABASE_URL = BACKENDS[TF_ENV].url;
+const SUPABASE_KEY = BACKENDS[TF_ENV].key;
 const MEDIA_BUCKET = 'media';
 const MAX_UPLOAD = 50 * 1024 * 1024; // matches the storage bucket limit
 

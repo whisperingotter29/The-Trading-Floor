@@ -2,8 +2,21 @@
 
 Static front end (HTML/CSS/JS, GSAP from cdnjs) backed by Supabase for accounts, database and media storage. Deploy the folder to Vercel as a static site; there is no build step.
 
+## Environments
+| | Production | Staging |
+|---|---|---|
+| Branch | `main` | `staging` |
+| URL | https://the-trading-floor-green.vercel.app | https://the-trading-floor-git-staging-arjun-s-projects12.vercel.app (and every Vercel preview) |
+| Supabase | `The-Trading-Floor` (`grcldjuolszcidfitxgo`) | `The-Trading-Floor-staging` (`oekffltpjxnpmzbqnwvk`) |
+
+- Work on `staging` (or a branch off it). Pushing `main` is what changes the live site.
+- `build-web.mjs` writes `www/env.js`: `production` for Vercel's production build or an iOS build from `main`, `staging` for everything else. `data.js` also pins the live domain to production, and a local server run from the repo root uses staging.
+- The staging database was cloned from production's schema on 2026-11-06, with the filter word lists, news sources, and recent news and creator clips copied over. It has no user accounts or posts.
+- A database change goes to staging first (`apply_migration` on `oekffltpjxnpmzbqnwvk`), then to production when the branch is merged.
+- Staging's `fetch-news` runs hourly. YouTube sources need a `YOUTUBE_API_KEY` secret on the staging project; RSS works without it.
+
 ## Backend
-- Supabase project `The-Trading-Floor` (`grcldjuolszcidfitxgo`). URL and publishable key are in `data.js` — the publishable key is meant to be public, access is controlled by row level security.
+- Supabase project `The-Trading-Floor` (`grcldjuolszcidfitxgo`), plus the staging copy above. URLs and publishable keys are in `data.js` — the publishable key is meant to be public, access is controlled by row level security.
 - Tables: `profiles`, `posts`, `comments`, `likes`, `saves`, `follows`, `strategies`, `strategy_follows`. Read views: `posts_feed`, `comments_list`, `strategies_list`, `profiles_stats`.
 - Every table has RLS: anyone can read public content, you can only write rows that belong to you, and `saves` are private to you.
 - Profile pictures are optional: squared and shrunk to 512px WebP in the browser, stored at `<user-id>/avatar/`, and shown instead of the three-letter badge. `Edit profile` on your own profile changes picture, name, badge, colour, markets and bio; handles are fixed.
