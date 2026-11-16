@@ -22,18 +22,20 @@ Due before the review with PJ on 2026-11-16. Recorded on the **live site**, http
 4. **Clean screen.** Hide bookmarks, close other tabs, turn on Do Not Disturb, browser zoom at 100%. Have the feedback form open in a tab for the last scene.
 5. **One timed dry run.** It doubles as the signed-in part of the UAT pre-check: tick UAT-02 and UAT-04 to UAT-08, 12 and 13 in `docs/UAT.md` section 7. Delete duplicate dry-run posts afterwards (that is UAT-13).
 
-## Script (target 4:00)
+## Script (about 4:10)
 
-| Time | Show | Say |
-|---|---|---|
-| 0:00-0:20 | Landing page: opening bell, candle scene, "Enter the floor" | "Day traders share P/L screenshots with no context. The Trading Floor shows the trade *and* the strategy behind it." Who it is for. |
-| 0:20-1:15 | **A:** Post a trade: screenshot, market, timeframe, session, long or short, P/L, R:R, caption, live preview, Post. It lands at the top of the Floor. | Required vs optional fields; uploads up to 50 MB; the ticket shows how the post will look before it goes up. |
-| 1:15-1:35 | **A:** post the screen recording, then open Replays | Recordings become a vertical Replays feed, with credited creator clips between them. |
-| 1:35-2:15 | **B** (private window): Continue with Google, profile setup (handle, badge, markets), find A in Explore, Follow, like and comment on A's post | A brand-new user joins and interacts in under a minute. Handles are permanent; offensive names are refused. |
-| 2:15-2:30 | **A:** the like and comment on the post; profile stats (posts, winners, net P/L, followers) | The social loop closes. |
-| 2:30-3:20 | **A:** Strategy builder: 3 steps, a checklist, a step image, live preview, Publish; the strategy page, then Discover | A strategy is its own page; other traders follow or fork it. |
-| 3:20-3:40 | News: Video, then Headlines, filter one source | Market news without leaving the app. |
-| 3:40-4:00 | **B:** the Report dialog on a post (cancel it), Block; then Delete account on the profile (cancel it). End on the feedback form. | Safety and privacy built in. "Five traders start testing this week, ten by the next checkpoint. Here is how they give feedback." |
+The word-for-word script, scene by scene with what to click, is in `docs/MVP_SCRIPT.md`:
+
+| Time | Scene |
+|---|---|
+| 0:00 | Hook: the problem and the idea |
+| 0:20 | A posts a trade |
+| 1:05 | B joins, follows, likes and comments |
+| 1:45 | A sees the like and comment |
+| 2:00 | A builds and publishes a strategy |
+| 2:50 | A posts a replay tagged with the strategy |
+| 3:20 | News and Discover |
+| 3:40 | Safety, then the close |
 
 ## Check before you submit
 - [ ] Length between 3:00 and 5:00.
