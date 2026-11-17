@@ -1,92 +1,47 @@
-# MVP recording script (about 4:10)
+# MVP recording script (about 4:00)
 
-Read the **Say** lines out loud; do the **Screen** steps while you talk. Anything in [brackets] is yours to fill in with your real trade before you record. Setup and the submit checklist are in `docs/CHECKPOINTS.md`.
+Record on the live site at laptop width. One account is enough. Each section gives what is on screen, then what you say.
 
-**Windows:** A = your account in a normal window, signed in, sitting on the landing page. B = a private window on the live site, signed out. Feedback form open in a third tab.
+## 1. What it is (0:00-0:20)
+**Screen:** landing page.
 
-**Fill in first:**
-- Trade 1 (screenshot): [market], [timeframe], [session], [long/short], [P/L], [R:R], [one sentence on why you took it]
-- Trade 2 (screen recording): same fields, short caption
-- Strategy: [name], and one line each for Setup, Entry and Stop, plus one checklist item
-- B's comment: [a real question about trade 1]
+The Trading Floor is a social network for day traders. Traders post the trades they took, with the chart, the result and the strategy behind it. The goal is to replace bare P/L screenshots with context: what the trade was, why it was taken, and the plan it came from.
 
----
+## 2. Posting a trade (0:20-1:00)
+**Screen:** Post a trade. Upload a screenshot, fill in the ticket, post it.
 
-## 1. Hook (0:00-0:20)
-**Screen (A):** landing page. Let the opening bell play, scroll once, then click **Enter the floor**.
+To post a trade, you upload a chart screenshot or a screen recording, up to 50 MB. Then you fill in the ticket: market, timeframe, session, long or short, profit or loss, and an optional risk-to-reward. The caption explains the trade, and a live preview shows the post before it goes up. Posts go to the Floor, the main feed.
 
-**Say:**
-> Hi, I'm Arjun, and this is The Trading Floor. Day traders share P/L screenshots everywhere: a big number, no context. You never see why they took the trade, or the plan behind it. The Trading Floor is a social network where you post the trade *and* the strategy behind it.
+## 3. The Floor and profiles (1:00-1:25)
+**Screen:** the Floor (like, comment, filter), then Profile.
 
-## 2. Post a trade (0:20-1:05)
-**Screen (A):**
-1. Click **Post a trade** and drop in the chart screenshot.
-2. Fill in Market, Timeframe, Session, Long or Short, Profit or Loss, the amount and Risk:reward.
-3. Type the caption, and point at the line under the amount ("Shows on your post as…").
-4. Click **Post to the floor**. The post appears at the top of the feed.
+On the Floor you can like, comment on, save and share posts, and follow traders. Filters show only photos, videos, wins or losses. Each profile shows the trader's posts, number of winners, net P/L, followers and strategies.
 
-**Say:**
-> I'm signed in, so let's post [this morning's] trade. I drop in my chart screenshot; it can also be a screen recording, up to 50 megabytes. Then the ticket: [MES] on the [five-minute], [New York] session, [long], [a profit of $X], at [one to two] risk-to-reward. The caption is the part screenshots never have: [why you took it]. It shows exactly how the post will look before it goes up. Post to the floor, and it's at the top of the feed with the result stamped on the ticket.
+## 4. Strategies (1:25-2:05)
+**Screen:** Strategy builder. Add steps, publish, open the strategy page, then Discover.
 
-## 3. A second trader joins (1:05-1:45)
-**Screen (B):**
-1. Click **Sign in or join**, then **Continue with Google**. Cut the account picker in the edit.
-2. In **Set up your profile**, fill in Display name, Handle, Badge (3 letters), Badge colour and two markets, then click **Save profile**.
-3. In **Explore**, search A's handle and click **Follow**.
-4. On **The Floor**, double-tap A's post to like it, and post the comment.
+Strategies are the core of the site. The builder writes a strategy step by step (setup, trigger, entry, stop, target, management), with a checklist and an example chart for each step. When it's published it becomes its own page, which other traders can follow or fork into their own version, and every trade tagged with it is listed there. Discover lists all strategies, searchable and sorted by most followed, most forked or newest.
 
-**Say:**
-> Now a second trader, a brand-new account, in a private window. Joining is one step: continue with Google. Then a profile: a name, a handle (handles are permanent, and offensive ones are refused), a three-letter badge, and the markets you trade. In Explore I find [@your handle] and follow. Back on the Floor, a double-tap likes the trade, and I'll ask a question: [your comment].
+## 5. Replays, News and Explore (2:05-2:35)
+**Screen:** Replays, News (Video, then Headlines), Explore search.
 
-## 4. The loop closes (1:45-2:00)
-**Screen (A):** open the post (refresh if needed) to show the like and the comment, then open **Profile**.
+Screen recordings go into Replays, a vertical video feed, mixed with credited Shorts from trading creators on YouTube. News has market video and headlines from Bloomberg, CNBC, the Wall Street Journal and others, filterable by source. Explore searches traders, posts and strategies.
 
-**Say:**
-> Back on my account, the like and the comment are already there. And my profile keeps score: posts, winners, net P/L and followers.
+## 6. Safety (2:35-2:45)
+**Screen:** report flag on a post, Block on a profile, Delete account.
 
-## 5. Build a strategy (2:00-2:50)
-**Screen (A):**
-1. Open **Strategy builder** and type the title.
-2. **Add step** three times: Setup, Entry and Stop, one line each.
-3. Add one **Checklist** item to Entry and attach the example chart.
-4. Pick a **Page look** and point at the live preview.
-5. Click **Publish strategy**; its page opens.
+Any post or trader can be reported or blocked, and users can delete their own account.
 
-**Say:**
-> A screenshot shows one trade. A strategy shows how you trade every day, so it gets its own page. In the builder I write my playbook step by step. Setup: [one line]. Entry: [one line], with a checklist I can tick before every trade. Stop: [one line]. I add an example chart, pick a look, and the preview updates as I go. Publish, and it's a page anyone can follow or fork into their own version. Stats are marked self-reported, because we don't connect to brokers yet.
+## 7. How the backend works (2:45-3:45)
+**Screen:** `docs/architecture-page.html` (open the file in a browser) or the Supabase dashboard's Table Editor.
 
-## 6. A replay, tagged with the strategy (2:50-3:20)
-**Screen (A):**
-1. Click **Post a trade** and drop in the screen recording.
-2. Fill in the ticket quickly and set **Strategy used** to the new strategy.
-3. Click **Post to the floor**, then open **Replays**.
-4. Open the strategy page and point at **Trades using this**.
+The front end is plain HTML, CSS and JavaScript, with no framework. It's hosted on Vercel: a push to the main branch on GitHub rebuilds and deploys the site. The same files are wrapped into an iPhone app with Capacitor.
 
-**Say:**
-> Now a second trade, this time a screen recording, tagged with that strategy. Recordings become Replays: a vertical feed where you watch how a trade actually played out, with credited creator clips in between. And on the strategy page it shows up under "Trades using this", so the plan and the proof sit together.
+The backend is Supabase. Supabase Auth handles sign-in with Google or email and gives each user a token that goes with every request. The data is in a Postgres database of 21 tables, every one with row-level security, so the database itself decides who can read or change each row, not the web page. The app reads through views that join posts with their authors, likes and comment counts, and filter out blocked users. Database triggers enforce rules like the profanity filter on handles. Images and videos are stored in Supabase Storage.
 
-## 7. News and Discover (3:20-3:40)
-**Screen (A):**
-1. Open **News** and let one video play.
-2. Switch to **Headlines** and tap one source chip.
-3. Open **Discover**; the new strategy is there.
+The only server-side code is an Edge Function called fetch-news. A cron job in the database runs it every 15 minutes. It pulls publisher RSS feeds and the YouTube Data API and saves the results, which feed the News page and the creator clips. The YouTube API key stays on the server and never reaches the browser.
 
-**Say:**
-> There's market news without leaving the app: video from the big networks and headlines you can filter by source, refreshed every 15 minutes. And Discover is where traders find strategies, including the one I just published.
+## 8. Next steps (3:45-4:00)
+**Screen:** the feedback form.
 
-## 8. Safety, then close (3:40-4:10)
-**Screen:**
-1. **B:** on A's post, click the flag, show the reasons, close it without sending.
-2. **B:** on A's profile, show **Block** without confirming.
-3. **A:** on Profile, click **Delete account**, show the handle check, then **Cancel**.
-4. Switch to the feedback form tab.
-
-**Say:**
-> Because it's a social network, safety is built in: any post or trader can be reported, blocking works both ways, and you can delete your account yourself at any time. That's the MVP. This week five traders start testing it, ten more by the next checkpoint, and every one of them fills in this feedback form. Next up are a new look and private accounts, which are already in testing. Thanks for watching.
-
----
-
-## If the timing is off
-- **Over 5:00:** cut scene 7, then shorten scene 4 to the like and comment only.
-- **Under 3:00:** you're rushing. Slow down in scenes 2 and 5; those carry the pitch.
-- Do one full practice run. Fluffs in the middle are fine to leave in; clean the start and end with QuickTime's trim (Cmd+T).
+Next is user testing: five traders now, at least ten by Checkpoint 5, and 30 to 40 after that, all giving feedback through this form. Private accounts, privacy settings and a new design are already built and in testing.

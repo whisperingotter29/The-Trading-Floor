@@ -22,20 +22,9 @@ Due before the review with PJ on 2026-11-16. Recorded on the **live site**, http
 4. **Clean screen.** Hide bookmarks, close other tabs, turn on Do Not Disturb, browser zoom at 100%. Have the feedback form open in a tab for the last scene.
 5. **One timed dry run.** It doubles as the signed-in part of the UAT pre-check: tick UAT-02 and UAT-04 to UAT-08, 12 and 13 in `docs/UAT.md` section 7. Delete duplicate dry-run posts afterwards (that is UAT-13).
 
-## Script (about 4:10)
+## Script (about 4:00)
 
-The word-for-word script, scene by scene with what to click, is in `docs/MVP_SCRIPT.md`:
-
-| Time | Scene |
-|---|---|
-| 0:00 | Hook: the problem and the idea |
-| 0:20 | A posts a trade |
-| 1:05 | B joins, follows, likes and comments |
-| 1:45 | A sees the like and comment |
-| 2:00 | A builds and publishes a strategy |
-| 2:50 | A posts a replay tagged with the strategy |
-| 3:20 | News and Discover |
-| 3:40 | Safety, then the close |
+The script is in `docs/MVP_SCRIPT.md`: what the site does, its goal and how the backend works, with what to show on screen for each part. One account is enough.
 
 ## Check before you submit
 - [ ] Length between 3:00 and 5:00.
